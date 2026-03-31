@@ -231,7 +231,7 @@
   <script>
     let PAGE = "<?= page ?>";
     let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9ooKwvGAR5hzbCYxJG7Z-W0Sd9VtiChKnLDV7VCs4or8mbfuo4f5AFslClVM9zken/exec";
+    const SCRIPT_URL = "<?= scriptUrl ?>";
     let DB = { config: {}, content: {} };
     let currentAdminSheet = 'Berita';
     let currentAdminHeaders = [];
@@ -685,7 +685,7 @@
       }
     }
 
-    // --- FUNGSI BASE64 UNTUK VIDEO ---
+    // --- FUNGSI BASE64 UNTUK VIDEO & GAMBAR ---
     const getBase64 = (file) => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -744,7 +744,7 @@
       reader.onerror = error => reject(error);
     });
 
-    // --- UPLOAD INLINE EDITOR (GAMBAR / VIDEO) ---
+    // --- FUNGSI UPLOAD INLINE (DALAM EDITOR BERITA) ---
     async function uploadMediaInline(file, context, isVideo) {
       showLoading(`Mengunggah ${isVideo ? 'Video' : 'Gambar'} ke Teks Editor...`);
       try {
@@ -782,37 +782,30 @@
         const hLower = h.toLowerCase();
 
         // DETEKSI LOGIKA UNTUK SEMUA MEDIA (GAMBAR/VIDEO)
-        const isVideoField = hLower.includes('video') || hLower.includes('mp4');
-        const isImageField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur')) && !isVideoField && !hLower.includes('judul') && !hLower.includes('deskripsi');
+        const isMediaField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur') || hLower.includes('video') || hLower.includes('file') || hLower.includes('media') || hLower.includes('galeri')) && !hLower.includes('judul') && !hLower.includes('deskripsi');
         const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita') || hLower.includes('teks'));
         
-        if (isVideoField) {
+        if (isMediaField) {
           html += `
-          <div class="col-md-6 mb-2">
-            <label class="form-label font-bold text-slate-700">${h}</label>
-            <input type="file" class="form-control admin-file py-2 rounded-xl border-slate-300" data-header="${h}" accept="video/mp4,video/webm">
+          <div class="col-md-6 mb-3">
+            <label class="form-label font-bold text-slate-700">${h} (Gambar / Video)</label>
+            <input type="file" class="form-control admin-file py-2 rounded-xl border-slate-300" data-header="${h}" accept="image/*,video/mp4,video/webm">
             <input type="hidden" class="admin-input" data-header="${h}" value="${val}" id="hidden-${h}">
-            <div class="mt-2 text-xs text-slate-500">Pilih file video (Max 15MB).</div>
-            ${val ? `<div class="mt-2"><iframe src="${val}" class="h-32 w-full rounded-lg shadow-sm" frameborder="0"></iframe></div>` : ''}
-          </div>`;
-        } else if (isImageField) {
-          html += `
-          <div class="col-md-6 mb-2">
-            <label class="form-label font-bold text-slate-700">${h}</label>
-            <input type="file" class="form-control admin-file py-2 rounded-xl border-slate-300" data-header="${h}" accept="image/*">
-            <input type="hidden" class="admin-input" data-header="${h}" value="${val}" id="hidden-${h}">
-            <div class="mt-2 text-xs text-slate-500">Pilih file gambar. Cover akan dipotong otomatis 500x500px.</div>
-            ${val && String(val).startsWith('http') ? `<div class="mt-2"><img src="${val}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>` : ''}
+            <div class="mt-2 text-xs text-slate-500">Pilih file gambar atau video (Maksimal 15MB).</div>
+            ${val ? (val.includes('/preview') 
+                ? `<div class="mt-2"><iframe src="${val}" class="h-32 w-full rounded-lg shadow-sm" style="border:none;" allowfullscreen></iframe></div>` 
+                : `<div class="mt-2"><img src="${val}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`) 
+            : ''}
           </div>`;
         } else if (isRichText) {
           html += `
-          <div class="col-12 mb-2">
+          <div class="col-12 mb-3">
             <label class="form-label font-bold text-slate-700">${h}</label>
             <textarea class="form-control admin-input rich-text" data-header="${h}">${val}</textarea>
           </div>`;
         } else {
           html += `
-          <div class="col-md-6 mb-2">
+          <div class="col-md-6 mb-3">
             <label class="form-label font-bold text-slate-700">${h}</label>
             <input type="text" class="form-control admin-input py-2.5 rounded-xl border-slate-300 focus:ring-blue-500 focus:border-blue-500" data-header="${h}" value="${val}">
           </div>`;
@@ -821,12 +814,12 @@
 
       document.getElementById('adminForm').innerHTML = html;
 
-      // MEMBUAT TOMBOL "UPLOAD VIDEO" KUSTOM UNTUK EDITOR (BERITA)
-      var CustomUploadVideo = function (context) {
+      // MEMBUAT TOMBOL "UPLOAD VIDEO" KUSTOM UNTUK EDITOR BERITA
+      var CustomVideo = function (context) {
           var ui = $.summernote.ui;
           var button = ui.button({
-              contents: '<i class="fas fa-file-video text-blue-600"/> <b>Upload Video</b>',
-              tooltip: 'Upload File Video dari Perangkat (Max 15MB)',
+              contents: '<i class="fas fa-file-video text-danger"></i> <b>Upload Video</b>',
+              tooltip: 'Pilih File Video (MP4) dari Komputer/HP (Max 15MB)',
               click: function () {
                   var fileInput = document.createElement('input');
                   fileInput.type = 'file';
@@ -848,18 +841,19 @@
         $(this).summernote({
           placeholder: 'Tulis konten / deskripsi di sini...',
           tabsize: 2,
-          height: 250,
+          height: 300,
           toolbar: [
             ['style', ['style']],
             ['font', ['bold', 'italic', 'underline', 'clear']],
             ['color', ['color']],
             ['para', ['ul', 'ol', 'paragraph']],
             ['table', ['table']],
-            ['insert', ['link', 'picture', 'customUploadVideo']], // Masukkan customUploadVideo di sini
+            // PERHATIKAN: 'video' asli dihapus, diganti 'customVideo'
+            ['insert', ['link', 'picture', 'customVideo']],
             ['view', ['fullscreen', 'codeview', 'help']]
           ],
           buttons: {
-              customUploadVideo: CustomUploadVideo
+              customVideo: CustomVideo
           },
           callbacks: {
             onImageUpload: function(files) {
