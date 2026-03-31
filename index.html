@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIS Baiturrahman Gubeng</title>
@@ -37,6 +38,10 @@
     .guru-img { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; margin: 0 auto 15px; border: 5px solid #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: transform 0.3s; }
     .guru-img:hover { transform: scale(1.05); }
     .line-title { width: 60px; height: 4px; background-color: #fd5308; margin: 15px auto; border-radius: 2px; }
+    .note-modal-backdrop { z-index: 1040 !important; }
+    .note-modal { z-index: 1050 !important; }
+    .note-editor .note-editing-area .note-editable img { max-width: 100%; height: auto; }
+    video { max-width: 100%; border-radius: 8px; }
     main#site-content { flex: 1; }
   </style>
 </head>
@@ -234,13 +239,9 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
-    // ========================================================
-    // GANTI STRING INI DENGAN URL WEB APP DARI GOOGLE APPS SCRIPT BAPAK
-    // Contoh: "https://script.google.com/macros/s/AKfycb.../exec"
-    // ========================================================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwSIXAF4BWcO826f9S2LzoOd_yW1EPAvpShb-LYBFUc74UKuV-N9Zd0KTm4ce7xgycL/exec"; 
-
+    let PAGE = "<?= page ?>";
     let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwoviiAk1T8D1fRwQA8QlUbfwLNOtMpy7mP7ms_TraJPGkAykIsO5cjeuwv5E_QY5WN/exec";
     let DB = { config: {}, content: {} };
     let currentAdminSheet = 'Berita';
     let currentAdminHeaders = [];
@@ -251,29 +252,10 @@
       initView();
     });
 
-    // --- FUNGSI FETCH UNTUK REST API (PENGGANTI google.script.run) ---
-    async function fetchAPI(action, params = "") {
-        try {
-            const response = await fetch(`${SCRIPT_URL}?action=${action}${params}`);
-            return await response.json();
-        } catch (error) { throw error; }
-    }
-
-    async function postAPI(data) {
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(data)
-            });
-            return await response.json();
-        } catch (error) { throw error; }
-    }
-
-    // --- FUNGSI MENGONVERSI URL VIDEO (MENCEGAH LOADING DRIVE) ---
+    // --- FUNGSI MENGUBAH URL VIDEO LAMA AGAR BISA DIPUTAR ---
     function getPlayableVideoUrl(url) {
         if (!url) return '';
-        // Ubah otomatis link preview lawas menjadi link streaming
+        // Jika ada URL /preview, ubah menjadi URL streaming download
         if (url.includes('/preview')) {
             const match = url.match(/\/d\/(.*?)\/preview/);
             if (match && match[1]) return `https://drive.google.com/uc?export=download&id=${match[1]}`;
@@ -281,13 +263,13 @@
         return url;
     }
 
-    // --- MERENDER THUMBNAIL CARD / KOTAK ---
+    // --- FUNGSI MERENDER THUMBNAIL BERITA & GALERI ---
     function renderMedia(url, classes, alt = "Media") {
         if (!url) return '';
         url = getPlayableVideoUrl(url);
 
+        // Jika URL video, gunakan tag video agar loading tidak tertahan Drive
         if (url.includes('export=download')) {
-            // #t=0.1 memicu frame pertama video sebagai gambar diam sebelum diputar
             return `<video class="${classes}" style="object-fit: cover; background-color: #1e293b;" src="${url}#t=0.1" muted playsinline preload="metadata"></video>`;
         } else {
             return `<img src="${url}" class="${classes}" alt="${alt}" loading="lazy">`;
@@ -296,7 +278,10 @@
 
     function initView() {
       document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-      if (IS_AUTH) {
+      if (PAGE === 'admin' && !IS_AUTH) {
+        showLoginView();
+        hideLoading();
+      } else if (IS_AUTH) {
         document.getElementById('view-admin').classList.add('active');
         loadAdminDashboard();
       } else {
@@ -334,32 +319,44 @@
 
     function nav(section) {
       document.querySelectorAll('.site-section').forEach(s => s.classList.add('hidden'));
-      const targetSection = document.getElementById('section-' + section);
-      if(targetSection) targetSection.classList.remove('hidden');
-      
+      document.getElementById('section-' + section).classList.remove('hidden');
       document.querySelectorAll('.nav-menu a').forEach(a => a.classList.remove('active-link'));
       const activeLink = document.getElementById('link-' + section);
       if(activeLink) activeLink.classList.add('active-link');
-      
       if (section !== 'home' && section !== 'baca') {
         renderSection(section);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    async function loadSiteData() {
+    function loadSiteData() {
       showLoading("Memuat Data Website...");
-      try {
-        DB.config = await fetchAPI('getSiteConfig');
-        renderConfig();
-        
-        DB.content = await fetchAPI('getContentData');
-        renderHome();
-        hideLoading();
-      } catch (e) {
-        hideLoading();
-        Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang halaman.', 'error');
-      }
+      google.script.run
+        .withSuccessHandler(data => {
+          try {
+            DB.config = data;
+            renderConfig();
+            google.script.run
+              .withSuccessHandler(content => {
+                try {
+                  DB.content = content;
+                  renderHome();
+                  hideLoading();
+                } catch(e) {
+                  hideLoading();
+                }
+              })
+              .withFailureHandler(e => { hideLoading(); })
+              .getContentData();
+          } catch(e) {
+            hideLoading();
+          }
+        })
+        .withFailureHandler(e => {
+          hideLoading();
+          Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang halaman.', 'error');
+        })
+        .getSiteConfig();
     }
 
     function renderConfig() {
@@ -557,7 +554,7 @@
           
           let playableUrl = getPlayableVideoUrl(imgUrl);
           let mediaHtml = playableUrl.includes('export=download')
-              ? `<video controls playsinline src="${playableUrl}" class="w-full h-56 rounded-xl mb-3" style="background: #000; object-fit: cover;"></video>`
+              ? `<video controls playsinline preload="metadata" src="${playableUrl}" class="w-full h-56 rounded-xl mb-3" style="background: #000; object-fit: cover;"></video>`
               : `<img src="${playableUrl}" class="w-full h-56 object-cover rounded-xl mb-3" alt="Galeri">`;
 
           html += `
@@ -610,17 +607,16 @@
       `;
     }
 
-    async function handleLogin(e) {
+    function handleLogin(e) {
       e.preventDefault();
       const u = document.getElementById('login-user').value;
       const p = document.getElementById('login-pass').value;
       showLoading("Proses Login...");
-      
-      try {
-        const res = await postAPI({ action: 'login', username: u, password: p });
+      google.script.run.withSuccessHandler(res => {
         if (res.success) {
           sessionStorage.setItem('IS_ADMIN', 'true');
           IS_AUTH = true;
+          PAGE = 'admin';
           hideLoading();
           Swal.fire({icon: 'success', title: 'Login Berhasil', timer: 1500, showConfirmButton: false}).then(() => {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
@@ -630,9 +626,7 @@
         } else {
           hideLoading(); Swal.fire('Login Gagal', res.message, 'error');
         }
-      } catch (err) {
-        hideLoading(); Swal.fire('Error Server', 'Koneksi ke database gagal.', 'error');
-      }
+      }).login(u, p);
     }
 
     function handleLogout() {
@@ -642,21 +636,20 @@
           showLoading("Keluar Sistem...");
           sessionStorage.removeItem('IS_ADMIN');
           IS_AUTH = false;
+          PAGE = 'home';
           hideLoading();
           showSiteView();
         }
       });
     }
 
-    async function loadAdminDashboard() {
+    function loadAdminDashboard() {
       document.getElementById('admin-table-view').classList.add('hidden');
       document.getElementById('admin-dashboard-view').classList.remove('hidden');
       document.querySelectorAll('.admin-nav').forEach(n => n.classList.remove('active'));
       document.getElementById('nav-Dashboard').classList.add('active');
       showLoading("Memuat Data Dashboard...");
-      
-      try {
-        const stats = await fetchAPI('getDashboardStats');
+      google.script.run.withSuccessHandler(stats => {
         document.getElementById('dashboard-stats-container').innerHTML = `
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Berita</h3><p class="text-4xl font-bold text-slate-800">${stats.totalBerita}</p></div><div class="p-4 bg-blue-50 rounded-full"><i class="fas fa-newspaper text-blue-500 text-2xl"></i></div></div></div>
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Guru</h3><p class="text-4xl font-bold text-slate-800">${stats.totalGuru}</p></div><div class="p-4 bg-emerald-50 rounded-full"><i class="fas fa-chalkboard-teacher text-emerald-500 text-2xl"></i></div></div></div>
@@ -664,12 +657,10 @@
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Modul Profil</h3><p class="text-4xl font-bold text-slate-800">${stats.totalProfil}</p></div><div class="p-4 bg-purple-50 rounded-full"><i class="fas fa-school text-purple-500 text-2xl"></i></div></div></div>
         `;
         hideLoading();
-      } catch(e) {
-        hideLoading();
-      }
+      }).getDashboardStats();
     }
 
-    async function loadAdminModule(sheet) {
+    function loadAdminModule(sheet) {
       currentAdminSheet = sheet;
       document.getElementById('admin-dashboard-view').classList.add('hidden');
       document.getElementById('admin-table-view').classList.remove('hidden');
@@ -680,14 +671,11 @@
       if(activeNav) activeNav.classList.add('active');
 
       showLoading(`Memuat Data ${sheet}...`);
-      try {
-        const res = await fetchAPI('getAllData', `&sheet=${sheet}`);
+      google.script.run.withSuccessHandler(res => {
         currentAdminHeaders = res.headers;
         renderAdminTable(res.data);
         hideLoading();
-      } catch (e) {
-        hideLoading(); Swal.fire('Error', 'Gagal memuat data.', 'error');
-      }
+      }).getAllData(sheet);
     }
 
     function renderAdminTable(data) {
@@ -727,18 +715,15 @@
       document.getElementById('admin-table-body').innerHTML = body;
     }
 
-    async function openAdminModal(mode, id = null) {
+    function openAdminModal(mode, id = null) {
       currentEditId = id;
       document.getElementById('modal-title').innerText = mode === 'add' ? 'Tambah Data Baru' : 'Edit Data';
       if (mode === 'edit') {
         showLoading("Mengambil Data...");
-        try {
-          const res = await fetchAPI('getById', `&sheet=${currentAdminSheet}&id=${id}`);
+        google.script.run.withSuccessHandler(res => {
           hideLoading(); 
           renderAdminForm(res.data);
-        } catch(e) {
-          hideLoading(); Swal.fire('Error', 'Gagal membuka form', 'error');
-        }
+        }).getById(currentAdminSheet, id);
       } else {
         renderAdminForm(null);
       }
@@ -769,7 +754,9 @@
             canvas.height = maxHeight;
             const ctx = canvas.getContext('2d');
             const size = Math.min(width, height);
-            ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
+            const startX = (width - size) / 2;
+            const startY = (height - size) / 2;
+            ctx.drawImage(img, startX, startY, size, size, 0, 0, maxWidth, maxHeight);
           } else {
             if (width > height) {
               if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; }
@@ -794,21 +781,23 @@
         let base64Str = isVideo ? await getBase64(file) : await compressImage(file, 800, 800, false);
         const fileName = (isVideo ? "video_" : "inline_") + new Date().getTime() + "_" + file.name;
         
-        const res = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
-        hideLoading();
-        
-        if(res.success) {
-          if(isVideo) {
-              const playableUrl = getPlayableVideoUrl(res.url);
-              const node = document.createElement('div');
-              node.innerHTML = `<br><video controls playsinline src="${playableUrl}" width="100%" style="border-radius:12px; max-height: 400px; background: #000;"></video><br>`;
-              context.invoke('editor.insertNode', node);
+        google.script.run.withSuccessHandler(res => {
+          hideLoading();
+          if(res.success) {
+            if(isVideo) {
+                const playableUrl = getPlayableVideoUrl(res.url);
+                const node = document.createElement('div');
+                node.innerHTML = `<br><video controls playsinline preload="metadata" src="${playableUrl}" width="100%" style="border-radius:12px; max-height: 400px; background: #000;"></video><br>`;
+                context.invoke('editor.insertNode', node);
+            } else {
+                context.invoke('editor.insertImage', res.url);
+            }
           } else {
-              context.invoke('editor.insertImage', res.url);
+            Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
           }
-        } else {
-          Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
-        }
+        }).withFailureHandler(err => {
+          hideLoading(); Swal.fire('Error Server', err.message, 'error');
+        }).uploadMediaToDrive(base64Str, fileName);
       } catch(e) {
         hideLoading(); Swal.fire('Error', 'Gagal memproses file.', 'error');
       }
@@ -829,7 +818,7 @@
           if (val) {
              let playableUrl = getPlayableVideoUrl(val);
              if (playableUrl.includes('export=download')) {
-                 previewHtml = `<div class="mt-2"><video controls src="${playableUrl}#t=0.1" class="h-32 w-full rounded-lg shadow-sm" style="background: #000; object-fit: contain;"></video></div>`;
+                 previewHtml = `<div class="mt-2"><video controls playsinline src="${playableUrl}#t=0.1" class="h-32 w-full rounded-lg shadow-sm" style="background: #000; object-fit: contain;"></video></div>`;
              } else {
                  previewHtml = `<div class="mt-2"><img src="${playableUrl}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`;
              }
@@ -949,7 +938,10 @@
                     base64Str = await compressImage(file, 500, 500, true);
                 }
                 const fileName = "media_" + new Date().getTime() + "_" + file.name;
-                const uploadRes = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
+                
+                const uploadRes = await new Promise((resolve, reject) => {
+                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).uploadMediaToDrive(base64Str, fileName);
+                });
 
                 if (uploadRes.success) {
                     obj[header] = uploadRes.url;
@@ -965,25 +957,22 @@
       }
 
       showLoading("Memperbarui Database...");
-      try {
-        let res;
-        if (currentEditId) {
-          res = await postAPI({ action: 'updateData', sheetName: currentAdminSheet, id: currentEditId, dataObj: obj });
-        } else {
-          res = await postAPI({ action: 'insertData', sheetName: currentAdminSheet, dataObj: obj });
-        }
-        
-        hideLoading();
-        if(res.success) {
-          bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
-          Swal.fire('Sukses', res.message, 'success');
-          loadAdminModule(currentAdminSheet);
-          DB.content = {};
-        } else {
-          Swal.fire('Error', res.message, 'error');
-        }
-      } catch (e) {
-        hideLoading(); Swal.fire('Error', 'Gagal menyimpan data.', 'error');
+      if (currentEditId) {
+        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).updateData(currentAdminSheet, currentEditId, obj);
+      } else {
+        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).insertData(currentAdminSheet, obj);
+      }
+    }
+
+    function handleSaveResponse(res) {
+      hideLoading();
+      if(res.success) {
+        bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
+        Swal.fire('Sukses', res.message, 'success');
+        loadAdminModule(currentAdminSheet);
+        DB.content = {};
+      } else {
+        Swal.fire('Error', res.message, 'error');
       }
     }
 
@@ -993,14 +982,11 @@
       }).then(async (result) => {
         if (result.isConfirmed) {
           showLoading("Menghapus Data...");
-          try {
-            const res = await postAPI({ action: 'deleteData', sheetName: currentAdminSheet, id: id });
-            hideLoading();
-            if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
-            else { Swal.fire('Error', res.message, 'error'); }
-          } catch(e) {
-            hideLoading(); Swal.fire('Error', 'Gagal menghapus data.', 'error');
-          }
+          google.script.run.withSuccessHandler(res => {
+              hideLoading();
+              if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
+              else { Swal.fire('Error', res.message, 'error'); }
+          }).deleteData(currentAdminSheet, id);
         }
       });
     }
