@@ -238,10 +238,13 @@
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <script>
-    let PAGE = "<?= page ?>";
+<script>
+    // ========================================================
+    // GANTI URL DI BAWAH INI DENGAN URL WEB APP BAPAK
+    // ========================================================
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgEoi2rIGgbmW-R7eEJhTDU6YD0Pr0qPvk-ZDsoQvU6Q3vzLCbR8nxEzSXh8PIibdx/exec"; 
+
     let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgEoi2rIGgbmW-R7eEJhTDU6YD0Pr0qPvk-ZDsoQvU6Q3vzLCbR8nxEzSXh8PIibdx/exec";
     let DB = { config: {}, content: {} };
     let currentAdminSheet = 'Berita';
     let currentAdminHeaders = [];
