@@ -5,15 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     
     <title>MIS Baiturrahman Gubeng - Website Resmi</title>
-    <meta name="description" content="Website Resmi MIS Baiturrahman Gubeng Surabaya. Membangun Generasi Qur'ani, Cerdas, Berakhlak Mulia, dan Berprestasi. Informasi PPDB, berita madrasah, dan akses E-Learning.">
-    <meta name="keywords" content="MIS Baiturrahman, Madrasah Surabaya, SD Islam Gubeng, Sekolah Berprestasi, E-learning Madrasah">
+    <meta name="description" content="Website Resmi MIS Baiturrahman Gubeng Surabaya. Membangun Generasi Qur'ani, Cerdas, Berakhlak Mulia, dan Berprestasi.">
+    <meta name="keywords" content="MIS Baiturrahman, Madrasah Surabaya, SD Islam Gubeng, Sekolah Berprestasi">
     <meta name="author" content="MIS Baiturrahman Gubeng">
-    <meta name="robots" content="index, follow">
-
-    <meta property="og:title" content="MIS Baiturrahman Gubeng">
-    <meta property="og:description" content="Website Resmi MIS Baiturrahman Gubeng Surabaya. Membangun Generasi Qur'ani.">
-    <meta property="og:type" content="website">
-
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -267,7 +262,6 @@
         // --- HELPER UNTUK MERENDER MEDIA SECARA CERDAS ---
         function renderMedia(url, classes, alt = "Media") {
             if (!url) return '';
-            // Jika mengandung '/preview', render sebagai Video Iframe (Player Google Drive)
             if (url.includes('/preview')) {
                 return `<iframe src="${url}" class="${classes}" style="border:none; min-height:250px; border-radius:inherit;" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
             } else {
@@ -620,6 +614,66 @@
             } else { renderAdminForm(null); }
         }
 
+        // --- FUNGSI BASE64 & KOMPRESI ---
+        const getBase64 = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
+        });
+
+        const compressImage = (file, maxWidth, maxHeight, forceSquare = false) => new Promise((resolve, reject) => {
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width; let height = img.height;
+                    let applyForceSquare = forceSquare;
+                    if(['AsetGambar', 'MediaSosial', 'LandingPage', 'InfoSPMB'].includes(currentAdminSheet)) applyForceSquare = false;
+                    
+                    if (applyForceSquare) {
+                        canvas.width = maxWidth; canvas.height = maxHeight;
+                        const ctx = canvas.getContext('2d'); const size = Math.min(width, height);
+                        ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
+                    } else {
+                        if (width > height) { if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; } } 
+                        else { if (height > maxHeight) { width = Math.round((width *= maxHeight / height)); height = maxHeight; } }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    }
+                    resolve(canvas.toDataURL(file.type === 'image/png' && !applyForceSquare ? 'image/png' : 'image/jpeg', 0.8));
+                };
+                img.src = event.target.result;
+            };
+        });
+
+        // --- FUNGSI UPLOAD MEDIA LANGSUNG DI DALAM EDITOR ---
+        async function uploadMediaInline(file, context, isVideo) {
+            showLoading(`Mengunggah ${isVideo ? 'Video' : 'Gambar'} ke Editor...`);
+            try {
+                let base64Str = isVideo ? await getBase64(file) : await compressImage(file, 800, 800, false);
+                const prefix = isVideo ? "video_" : "inline_";
+                const fileName = prefix + new Date().getTime() + "_" + file.name;
+                
+                const res = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
+                hideLoading();
+                
+                if(res.success) { 
+                    if(isVideo) {
+                        const node = document.createElement('div');
+                        node.innerHTML = `<br><iframe src="${res.url}" width="100%" height="315" style="border:none; border-radius:8px;" allow="autoplay; encrypted-media" allowfullscreen></iframe><br>`;
+                        context.invoke('editor.insertNode', node);
+                    } else {
+                        context.invoke('editor.insertImage', res.url);
+                    }
+                } else { 
+                    Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error'); 
+                }
+            } catch(e) {
+                hideLoading(); Swal.fire('Error Server', 'Gagal memproses file.', 'error');
+            }
+        }
+
+        // --- RENDER FORM ADMIN BESERTA KUSTOMISASI EDITOR ---
         function renderAdminForm(data) {
             let html = '';
             currentAdminHeaders.forEach((h, i) => {
@@ -627,7 +681,6 @@
                 const val = data ? data[i] : '';
                 const hLower = h.toLowerCase();
                 
-                // DETEKSI OTOMATIS: Video vs Gambar
                 const isVideoField = hLower.includes('video');
                 const isImageField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur')) && !isVideoField && !hLower.includes('judul');
                 const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita'));
@@ -665,44 +718,55 @@
             });
 
             document.getElementById('adminForm').innerHTML = html;
-            $('.rich-text').summernote({ height: 250, toolbar: [ ['style', ['style']], ['font', ['bold', 'italic', 'underline', 'clear']], ['color', ['color']], ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']], ['insert', ['link', 'picture', 'video']], ['view', ['fullscreen', 'codeview']] ] });
+
+            // Membuat Tombol Kustom Upload Video untuk Summernote
+            var CustomUploadVideo = function (context) {
+                var ui = $.summernote.ui;
+                var button = ui.button({
+                    contents: '<i class="fas fa-file-video text-blue-600"/> <b>Upload Video</b>',
+                    tooltip: 'Pilih File Video dari Perangkat (Max 15MB)',
+                    click: function () {
+                        var fileInput = document.createElement('input');
+                        fileInput.type = 'file';
+                        fileInput.accept = 'video/mp4,video/webm,video/ogg';
+                        fileInput.onchange = function(e) {
+                            var file = e.target.files[0];
+                            if (file) {
+                                if (file.size > 15 * 1024 * 1024) { Swal.fire('Peringatan', 'Ukuran video maksimal 15MB', 'warning'); return; }
+                                uploadMediaInline(file, context, true);
+                            }
+                        };
+                        fileInput.click();
+                    }
+                });
+                return button.render();
+            };
+
+            // Inisialisasi Teks Editor
+            $('.rich-text').summernote({ 
+                height: 300, 
+                toolbar: [ 
+                    ['style', ['style']], 
+                    ['font', ['bold', 'italic', 'underline', 'clear']], 
+                    ['color', ['color']], 
+                    ['para', ['ul', 'ol', 'paragraph']], 
+                    ['table', ['table']], 
+                    // Perhatikan: Tombol 'customUploadVideo' diletakkan bersamaan dengan tombol insert lainnya
+                    ['insert', ['link', 'picture', 'customUploadVideo', 'video']], 
+                    ['view', ['fullscreen', 'codeview']] 
+                ],
+                buttons: {
+                    customUploadVideo: CustomUploadVideo
+                },
+                callbacks: {
+                    onImageUpload: function(files) {
+                        for(let i = 0; i < files.length; i++) { uploadMediaInline(files[i], $(this), false); }
+                    }
+                }
+            });
+            
             new bootstrap.Modal(document.getElementById('adminModal')).show();
         }
-
-        // --- FUNGSI BASE64 UNTUK VIDEO (TANPA KOMPRESI) ---
-        const getBase64 = (file) => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-
-        // --- FUNGSI KOMPRESI UNTUK GAMBAR (DENGAN CANVAS) ---
-        const compressImage = (file, maxWidth, maxHeight, forceSquare = false) => new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width; let height = img.height;
-                    let applyForceSquare = forceSquare;
-                    if(['AsetGambar', 'MediaSosial', 'LandingPage', 'InfoSPMB'].includes(currentAdminSheet)) applyForceSquare = false;
-                    
-                    if (applyForceSquare) {
-                        canvas.width = maxWidth; canvas.height = maxHeight;
-                        const ctx = canvas.getContext('2d'); const size = Math.min(width, height);
-                        ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
-                    } else {
-                        if (width > height) { if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; } } 
-                        else { if (height > maxHeight) { width = Math.round((width *= maxHeight / height)); height = maxHeight; } }
-                        canvas.width = width; canvas.height = height;
-                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
-                    }
-                    resolve(canvas.toDataURL(file.type === 'image/png' && !applyForceSquare ? 'image/png' : 'image/jpeg', 0.8));
-                };
-                img.src = event.target.result;
-            };
-        });
 
         async function saveAdminData() {
             let obj = {}; let isValid = true;
@@ -721,18 +785,13 @@
                 const header = fileInput.dataset.header;
                 if (fileInput.files && fileInput.files[0]) {
                     const file = fileInput.files[0];
-                    
-                    // Batas toleransi upload via Base64 ke Apps Script (Max 15MB)
                     if (file.size > 15 * 1024 * 1024) { Swal.fire('Peringatan', 'Ukuran file media maksimal 15MB', 'warning'); return; }
 
                     showLoading("Mengunggah Media...");
                     try {
                         let base64Str;
-                        if (file.type.startsWith('image/')) {
-                            base64Str = await compressImage(file, 500, 500, true);
-                        } else if (file.type.startsWith('video/')) {
-                            base64Str = await getBase64(file);
-                        }
+                        if (file.type.startsWith('image/')) base64Str = await compressImage(file, 500, 500, true);
+                        else if (file.type.startsWith('video/')) base64Str = await getBase64(file);
 
                         const fileName = "media_" + new Date().getTime() + "_" + file.name;
                         const uploadRes = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
