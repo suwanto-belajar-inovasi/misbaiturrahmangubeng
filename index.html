@@ -13,8 +13,7 @@
     <meta property="og:title" content="MIS Baiturrahman Gubeng">
     <meta property="og:description" content="Website Resmi MIS Baiturrahman Gubeng Surabaya. Membangun Generasi Qur'ani.">
     <meta property="og:type" content="website">
-
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta property="og:url" content="https://misbaiturrahman.github.io/"> <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -48,6 +47,9 @@
         .guru-img { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; margin: 0 auto 15px; border: 5px solid #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: transform 0.3s; }
         .guru-img:hover { transform: scale(1.05); }
         .line-title { width: 60px; height: 4px; background-color: #fd5308; margin: 15px auto; border-radius: 2px; }
+        .note-modal-backdrop { z-index: 1040 !important; }
+        .note-modal { z-index: 1050 !important; }
+        .note-editor .note-editing-area .note-editable img { max-width: 100%; height: auto; }
         main#site-content { flex: 1; }
     </style>
 </head>
@@ -248,9 +250,9 @@
 
     <script>
         // ==========================================
-        // KONFIGURASI API (GANTI DENGAN URL DEPLOY ANDA)
+        // KONFIGURASI API (WAJIB DIISI)
         // ==========================================
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPGM8M6msrb7SEUDC9786WAa-9UfTI34S3U5ARdl3Ha6n6drM08OhA3caiX9y0fopC/exec"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPGM8M6msrb7SEUDC9786WAa-9UfTI34S3U5ARdl3Ha6n6drM08OhA3caiX9y0fopC/exec"; // Ganti dengan URL Deploy Apps Script Anda
 
         let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
         let DB = { config: {}, content: {} };
@@ -264,17 +266,6 @@
             initView();
         });
 
-        // --- HELPER UNTUK MERENDER MEDIA SECARA CERDAS ---
-        function renderMedia(url, classes, alt = "Media") {
-            if (!url) return '';
-            // Jika mengandung '/preview', render sebagai Video Iframe (Player Google Drive)
-            if (url.includes('/preview')) {
-                return `<iframe src="${url}" class="${classes}" style="border:none; min-height:250px; border-radius:inherit;" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-            } else {
-                return `<img src="${url}" class="${classes}" alt="${alt}" loading="lazy">`;
-            }
-        }
-
         function initView() {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
             if (IS_AUTH) {
@@ -286,9 +277,17 @@
             }
         }
 
+        // ==========================================
+        // FUNGSI API FETCH
+        // ==========================================
         async function fetchAPI(url, options = {}) {
-            try { const response = await fetch(url, options); return await response.json(); } 
-            catch (error) { throw error; }
+            try {
+                const response = await fetch(url, options);
+                return await response.json();
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                throw error;
+            }
         }
 
         async function postAPI(data) {
@@ -299,9 +298,15 @@
                     body: JSON.stringify(data)
                 });
                 return await response.json();
-            } catch (error) { throw error; }
+            } catch (error) {
+                console.error("Post Error:", error);
+                throw error;
+            }
         }
 
+        // ==========================================
+        // FUNGSI UI & LOADING
+        // ==========================================
         function hideLoading() {
             const loader = document.getElementById('loading-screen');
             loader.style.opacity = '0';
@@ -312,7 +317,9 @@
         function showLoading(msg = "Memuat Sistem...") {
             const loader = document.getElementById('loading-screen');
             document.getElementById('loading-text').innerText = msg;
-            loader.style.display = 'flex'; void loader.offsetWidth; loader.style.opacity = '1';
+            loader.style.display = 'flex';
+            void loader.offsetWidth;
+            loader.style.opacity = '1';
         }
 
         function showLoginView() {
@@ -336,10 +343,15 @@
             const activeLink = document.getElementById('link-' + section);
             if(activeLink) activeLink.classList.add('active-link');
             
-            if (section !== 'home' && section !== 'baca') renderSection(section);
+            if (section !== 'home' && section !== 'baca') {
+                renderSection(section);
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // ==========================================
+        // RENDER WEBSITE PUBLIK
+        // ==========================================
         async function loadSiteData() {
             showLoading("Memuat Data Website...");
             try {
@@ -352,7 +364,8 @@
                 renderHome();
                 hideLoading();
             } catch (e) {
-                hideLoading(); Swal.fire('Error', 'Gagal terhubung ke database.', 'error');
+                hideLoading();
+                Swal.fire('Error', 'Gagal terhubung ke database. Pastikan URL Script benar.', 'error');
             }
         }
 
@@ -360,6 +373,7 @@
             const aset = DB.config.aset || [];
             const logo = aset.find(r => r[1] === 'Logo');
             if (logo && logo[2]) document.getElementById('logo-img').src = logo[2];
+            
             const banner = aset.find(r => r[1] === 'Banner');
             if (banner && banner[2]) document.getElementById('hero-banner').style.backgroundImage = `url('${banner[2]}')`;
 
@@ -376,7 +390,7 @@
                     let icon = m[3] ? m[3] : `fa-${m[1].toLowerCase()}`;
                     if(!icon.includes('fa-')) icon = 'fa-' + icon;
                     let prefix = (icon.includes('map') || icon.includes('envelope') || icon.includes('phone')) ? 'fas' : 'fab';
-                    medsosHtml += `<a href="${m[2]}" target="_blank" class="text-slate-400 hover:text-white transition text-2xl"><i class="${prefix} ${icon}"></i></a>`;
+                    medsosHtml += `<a href="${m[2]}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-white transition text-2xl" aria-label="${m[1]}"><i class="${prefix} ${icon}"></i></a>`;
                 }
             });
             document.getElementById('footer-medsos').innerHTML = medsosHtml;
@@ -385,6 +399,7 @@
         function renderHome() {
             const landing = DB.config.landing || [];
             const kepsekRow = landing.find(r => r[1] === 'Kepala_Sekolah');
+
             if (kepsekRow) {
                 if(document.getElementById('kepsek-nama')) document.getElementById('kepsek-nama').innerText = kepsekRow[2] || 'Kepala Madrasah';
                 if(document.getElementById('kepsek-sambutan')) document.getElementById('kepsek-sambutan').innerHTML = kepsekRow[3] || '';
@@ -393,22 +408,25 @@
 
             const berita = DB.content.berita || [];
             let html = '';
-            if(berita.length === 0) { html = '<div class="col-12 text-center text-slate-500 py-10">Belum ada berita.</div>'; } 
-            else {
+            if(berita.length === 0) {
+                html = '<div class="col-12 text-center text-slate-500 py-10">Belum ada berita dipublikasikan.</div>';
+            } else {
                 const latestBerita = [...berita].reverse().slice(0, 3);
                 latestBerita.forEach((r, idx) => {
                     let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
                     html += `
                     <div class="col-md-4 mb-4 animate__animated animate__fadeInUp" style="animation-delay: ${idx * 0.1}s;">
                         <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
-                            <div style="height:220px; overflow:hidden; position:relative;">
-                                ${imgUrl.includes('/preview') ? `<div class="absolute inset-0 bg-black/50 flex items-center justify-center z-10"><i class="fas fa-play-circle text-white text-5xl"></i></div>` : ''}
-                                ${renderMedia(imgUrl, "card-img-top w-full h-full object-cover transition-transform duration-500 hover:scale-110", "Cover")}
+                            <div style="height:220px; overflow:hidden;">
+                                <img src="${imgUrl}" class="card-img-top w-full h-full object-cover transition-transform duration-500 hover:scale-110" alt="Cover Berita" loading="lazy">
                             </div>
                             <div class="card-body p-6 flex-1 flex flex-col">
                                 <span class="text-xs font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full mb-3 inline-block w-max">Berita Baru</span>
                                 <h5 class="font-bold text-lg text-slate-800 mb-3 leading-snug">${r[1] || 'Tanpa Judul'}</h5>
                                 <p class="text-sm text-slate-500 mb-4 flex-1">${r[3] ? String(r[3]).replace(/<[^>]*>?/gm, '').substring(0, 100) + '...' : ''}</p>
+                                <div class="text-blue-600 font-bold hover:text-blue-800 text-left mt-auto inline-flex items-center group">
+                                    Baca Selengkapnya <i class="fas fa-arrow-right ml-2 transition-transform group-hover:translate-x-2"></i>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -419,7 +437,8 @@
 
         function renderSection(section) {
             const container = document.getElementById('section-' + section);
-            const judulMap = { 'profil': 'Profil Sekolah', 'guru': 'Dewan Guru & Staff', 'berita': 'Kumpulan Berita', 'galeri': 'Galeri Media', 'spmb': 'Informasi SPMB', 'lms': 'Portal E-Learning' };
+            const judulMap = { 'profil': 'Profil Sekolah', 'guru': 'Dewan Guru & Staff', 'berita': 'Kumpulan Berita', 'galeri': 'Galeri Foto Kegiatan', 'spmb': 'Informasi SPMB', 'lms': 'Portal E-Learning' };
+            
             let html = `<div class="text-center mb-12"><h2 class="text-3xl font-bold text-slate-800">${judulMap[section]}</h2><div class="line-title"></div></div>`;
 
             if (section === 'guru') {
@@ -431,7 +450,7 @@
                     html += `
                     <div class="col-6 col-md-3 text-center animate__animated animate__fadeInUp" style="animation-delay: ${(i%4)*0.1}s;">
                         <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-50 h-full">
-                            ${renderMedia(imgUrl, "guru-img mx-auto", r[1])}
+                            <img src="${imgUrl}" class="guru-img mx-auto" alt="${r[1]}" loading="lazy">
                             <h6 class="font-bold text-slate-800 mb-1">${r[1] || ''}</h6>
                             <p class="text-xs font-semibold text-blue-600 bg-blue-50 py-1 px-3 rounded-full inline-block mt-2">${r[2] || ''}</p>
                         </div>
@@ -440,6 +459,7 @@
                 html += '</div>';
             } else if (section === 'profil') {
                 const dataProfil = DB.content.profil || [];
+                if(dataProfil.length === 0) html += '<p class="text-center text-slate-500 w-full py-10">Profil madrasah belum dilengkapi.</p>';
                 dataProfil.forEach((r, i) => {
                     html += `
                     <div class="mb-10 bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-50 animate__animated animate__fadeInUp" style="animation-delay: ${i*0.1}s;">
@@ -450,25 +470,54 @@
             } else if (section === 'spmb') {
                 html += `<div class="max-w-4xl mx-auto bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-50 animate__animated animate__fadeInUp">`;
                 const spmb = DB.config.spmb || [];
-                const header = spmb.find(r => r[1] === 'Header');
-                if (header) {
-                    html += `<h3 class="text-2xl font-bold text-slate-800 mb-4">${header[2] || ''}</h3>`;
-                    if (header[3]) html += `<div class="prose max-w-none text-slate-600 mb-6">${header[3]}</div>`;
-                    if (header[4]) html += renderMedia(header[4], "w-full rounded-xl mb-8 shadow-sm");
+                if(spmb.length === 0) {
+                    html += '<p class="text-center text-slate-500 w-full py-10">Informasi PPDB/SPMB belum tersedia.</p>';
+                } else {
+                    const header = spmb.find(r => r[1] === 'Header');
+                    if (header) {
+                        html += `<h3 class="text-2xl font-bold text-slate-800 mb-4">${header[2] || ''}</h3>`;
+                        if (header[3]) html += `<div class="prose max-w-none text-slate-600 mb-6 leading-relaxed">${header[3]}</div>`;
+                        if (header[4]) html += `<img src="${header[4]}" class="w-full rounded-xl mb-8 shadow-sm" loading="lazy">`;
+                    }
+                    const noWa = spmb.find(r => r[1] === 'Nomor_WA');
+                    const pesanWa = spmb.find(r => r[1] === 'Pesan_WA');
+                    const brosur = spmb.find(r => r[1] === 'Link_Brosur');
+                    html += `<div class="flex flex-wrap gap-4 mt-6">`;
+                    if (noWa && noWa[2]) {
+                        let waLink = `https://wa.me/${noWa[2].toString().replace(/\D/g,'')}?text=${encodeURIComponent(pesanWa && pesanWa[2] ? pesanWa[2] : 'Halo')}`;
+                        html += `<a href="${waLink}" target="_blank" class="px-6 py-3 bg-green-500 text-white font-bold rounded-full hover:bg-green-600 transition shadow-md"><i class="fab fa-whatsapp mr-2 text-lg"></i> Hubungi Panitia</a>`;
+                    }
+                    if (brosur && brosur[2]) {
+                        html += `<a href="${brosur[2]}" target="_blank" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition shadow-md"><i class="fas fa-download mr-2"></i> Unduh Brosur</a>`;
+                    }
+                    html += `</div>`;
                 }
-                const noWa = spmb.find(r => r[1] === 'Nomor_WA');
-                html += `<div class="flex flex-wrap gap-4 mt-6">`;
-                if (noWa && noWa[2]) html += `<a href="https://wa.me/${noWa[2].toString().replace(/\D/g,'')}" target="_blank" class="px-6 py-3 bg-green-500 text-white font-bold rounded-full"><i class="fab fa-whatsapp mr-2"></i> Hubungi Panitia</a>`;
-                html += `</div></div>`;
+                html += `</div>`;
+            } else if (section === 'lms') {
+                html += '<div class="row g-4 justify-content-center">';
+                const dataLms = DB.content.lms || [];
+                if(dataLms.length === 0) html += '<p class="text-center text-slate-500 w-full py-10">Belum ada kelas/modul LMS.</p>';
+                dataLms.forEach((r, i) => {
+                    html += `
+                    <div class="col-md-6 col-lg-4 animate__animated animate__fadeInUp" style="animation-delay: ${(i%3)*0.1}s;">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 h-full flex flex-col justify-between items-center text-center hover:shadow-lg transition transform hover:-translate-y-2">
+                            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-6"><i class="fas fa-laptop-code"></i></div>
+                            <h4 class="font-bold text-xl text-slate-800 mb-6">${r[1] || 'Kelas / Modul'}</h4>
+                            ${r[2] && String(r[2]).startsWith('http') ? `<a href="${r[2]}" target="_blank" class="w-full block py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition shadow-md"><i class="fas fa-external-link-alt mr-2"></i> Masuk Kelas</a>` : ''}
+                        </div>
+                    </div>`;
+                });
+                html += '</div>';
             } else if (section === 'berita') {
                 html += '<div class="row g-4">';
                 const dataBerita = DB.content.berita || [];
+                if(dataBerita.length === 0) html += '<p class="text-center text-slate-500 w-full py-10">Belum ada berita dipublikasikan.</p>';
                 [...dataBerita].reverse().forEach((r, i) => {
                     let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
                     html += `
                     <div class="col-md-4 mb-4 animate__animated animate__fadeInUp" style="animation-delay: ${(i%3)*0.1}s;">
                         <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
-                            ${renderMedia(imgUrl, "card-img-top h-48 object-cover w-full")}
+                            <img src="${imgUrl}" class="card-img-top h-48 object-cover" loading="lazy" alt="Cover Berita">
                             <div class="card-body p-5 flex flex-col">
                                 <h5 class="font-bold text-lg mb-2">${r[1] || 'Tanpa Judul'}</h5>
                                 <p class="text-sm text-slate-500 flex-1">${r[3] ? String(r[3]).replace(/<[^>]*>?/gm, '').substring(0,80)+'...' : ''}</p>
@@ -480,27 +529,16 @@
             } else if (section === 'galeri') {
                 html += '<div class="row g-4">';
                 const dataGaleri = DB.content.galeri || [];
+                if(dataGaleri.length === 0) html += '<p class="text-center text-slate-500 w-full py-10">Belum ada foto di galeri.</p>';
                 [...dataGaleri].reverse().forEach((r, i) => {
                     let imgUrl = (r[2] && String(r[2]).startsWith('http')) ? r[2] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=No+Image');
+                    let desc = (r[2] && r[2] !== imgUrl) ? String(r[2] || '').replace(/<[^>]*>?/gm, '') : '';
                     html += `
                     <div class="col-md-4 mb-4 animate__animated animate__zoomIn" style="animation-delay: ${(i%3)*0.1}s;">
                         <div class="bg-white p-3 rounded-2xl shadow-sm h-full border border-slate-50 flex flex-col">
-                            ${renderMedia(imgUrl, "w-full h-56 object-cover rounded-xl mb-3", "Galeri")}
+                            <img src="${imgUrl}" class="w-full h-56 object-cover rounded-xl mb-3" loading="lazy" alt="Galeri">
                             <h6 class="font-bold text-slate-800 text-center mt-2">${r[1] || ''}</h6>
-                        </div>
-                    </div>`;
-                });
-                html += '</div>';
-            } else if (section === 'lms') {
-                html += '<div class="row g-4 justify-content-center">';
-                const dataLms = DB.content.lms || [];
-                dataLms.forEach((r, i) => {
-                    html += `
-                    <div class="col-md-6 col-lg-4 animate__animated animate__fadeInUp" style="animation-delay: ${(i%3)*0.1}s;">
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 h-full flex flex-col items-center text-center">
-                            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-6"><i class="fas fa-laptop-code"></i></div>
-                            <h4 class="font-bold text-xl text-slate-800 mb-6">${r[1] || 'Kelas / Modul'}</h4>
-                            ${r[2] && String(r[2]).startsWith('http') ? `<a href="${r[2]}" target="_blank" class="w-full block py-3 bg-blue-600 text-white font-bold rounded-xl"><i class="fas fa-external-link-alt mr-2"></i> Masuk Kelas</a>` : ''}
+                            <div class="text-sm text-slate-500 text-center mt-1 px-2 pb-2">${desc}</div>
                         </div>
                     </div>`;
                 });
@@ -517,47 +555,79 @@
             nav('baca');
             document.getElementById('section-baca').innerHTML = `
             <div class="max-w-4xl mx-auto">
-                <button onclick="nav('berita')" class="mb-6 btn btn-light rounded-full px-4 font-bold text-slate-600 shadow-sm"><i class="fas fa-arrow-left mr-2"></i> Kembali</button>
-                <div class="bg-white p-8 md:p-12 rounded-3xl shadow-sm animate__animated animate__fadeInUp">
-                    <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-6">${r[1] || 'Tanpa Judul'}</h1>
-                    ${imgUrl ? `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm">${renderMedia(imgUrl, "w-full h-auto max-h-[500px] object-cover")}</div>` : ''}
-                    <div class="prose max-w-none text-slate-700 leading-loose text-lg">${r[3] || ''}</div>
+                <button onclick="nav('berita')" class="mb-6 btn btn-light rounded-full px-4 font-bold text-slate-600 shadow-sm hover:bg-slate-200 transition">
+                    <i class="fas fa-arrow-left mr-2"></i> Kembali
+                </button>
+                <div class="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-50 animate__animated animate__fadeInUp">
+                    <span class="text-orange-600 font-bold bg-orange-50 px-4 py-2 rounded-full text-sm inline-block mb-4">Berita Terkini</span>
+                    <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-6 leading-tight">${r[1] || 'Tanpa Judul'}</h1>
+                    ${imgUrl ? `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm"><img src="${imgUrl}" class="w-full h-auto max-h-[500px] object-cover" loading="lazy" alt="Cover Berita"></div>` : ''}
+                    <div class="prose max-w-none text-slate-700 leading-loose text-lg text-justify" style="font-family:'Open Sans', sans-serif;">
+                        ${r[3] || ''}
+                    </div>
                 </div>
             </div>`;
         }
 
+        // ==========================================
+        // FUNGSI AUTH & ADMIN DASHBOARD
+        // ==========================================
         async function handleLogin(e) {
             e.preventDefault();
             const u = document.getElementById('login-user').value;
             const p = document.getElementById('login-pass').value;
             showLoading("Proses Login...");
+            
             try {
                 const res = await postAPI({ action: 'login', username: u, password: p });
                 if (res.success) {
-                    sessionStorage.setItem('IS_ADMIN', 'true'); IS_AUTH = true; hideLoading();
-                    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-                    document.getElementById('view-admin').classList.add('active');
-                    loadAdminDashboard();
-                } else { hideLoading(); Swal.fire('Gagal', res.message, 'error'); }
-            } catch(e) { hideLoading(); Swal.fire('Error', 'Gagal server', 'error'); }
+                    sessionStorage.setItem('IS_ADMIN', 'true');
+                    IS_AUTH = true;
+                    hideLoading();
+                    Swal.fire({icon: 'success', title: 'Login Berhasil', timer: 1500, showConfirmButton: false}).then(() => {
+                        document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+                        document.getElementById('view-admin').classList.add('active');
+                        loadAdminDashboard();
+                    });
+                } else {
+                    hideLoading(); Swal.fire('Login Gagal', res.message, 'error');
+                }
+            } catch(e) {
+                hideLoading(); Swal.fire('Error Server', 'Tidak dapat terhubung ke server', 'error');
+            }
         }
 
         function handleLogout() {
-            sessionStorage.removeItem('IS_ADMIN'); IS_AUTH = false; showSiteView();
+            Swal.fire({ title: 'Konfirmasi', text: "Keluar dari sistem?", icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya' }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading("Keluar Sistem...");
+                    sessionStorage.removeItem('IS_ADMIN');
+                    IS_AUTH = false;
+                    hideLoading();
+                    showSiteView();
+                }
+            });
         }
 
         async function loadAdminDashboard() {
             document.getElementById('admin-table-view').classList.add('hidden');
             document.getElementById('admin-dashboard-view').classList.remove('hidden');
-            showLoading("Memuat Dashboard...");
+            document.querySelectorAll('.admin-nav').forEach(n => n.classList.remove('active'));
+            document.getElementById('nav-Dashboard').classList.add('active');
+            
+            showLoading("Memuat Data Dashboard...");
             try {
                 const stats = await fetchAPI(`${SCRIPT_URL}?action=getDashboardStats`);
                 document.getElementById('dashboard-stats-container').innerHTML = `
                     <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Berita</h3><p class="text-4xl font-bold text-slate-800">${stats.totalBerita}</p></div><div class="p-4 bg-blue-50 rounded-full"><i class="fas fa-newspaper text-blue-500 text-2xl"></i></div></div></div>
                     <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Guru</h3><p class="text-4xl font-bold text-slate-800">${stats.totalGuru}</p></div><div class="p-4 bg-emerald-50 rounded-full"><i class="fas fa-chalkboard-teacher text-emerald-500 text-2xl"></i></div></div></div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Galeri</h3><p class="text-4xl font-bold text-slate-800">${stats.totalGaleri}</p></div><div class="p-4 bg-orange-50 rounded-full"><i class="fas fa-images text-orange-500 text-2xl"></i></div></div></div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Modul Profil</h3><p class="text-4xl font-bold text-slate-800">${stats.totalProfil}</p></div><div class="p-4 bg-purple-50 rounded-full"><i class="fas fa-school text-purple-500 text-2xl"></i></div></div></div>
                 `;
                 hideLoading();
-            } catch(e) { hideLoading(); }
+            } catch(e) {
+                hideLoading(); Swal.fire('Error', 'Gagal memuat statistik', 'error');
+            }
         }
 
         async function loadAdminModule(sheet) {
@@ -566,13 +636,19 @@
             document.getElementById('admin-table-view').classList.remove('hidden');
             document.getElementById('admin-title').innerText = 'Data ' + sheet;
 
+            document.querySelectorAll('.admin-nav').forEach(n => n.classList.remove('active'));
+            const activeNav = document.getElementById('nav-' + sheet);
+            if(activeNav) activeNav.classList.add('active');
+
             showLoading(`Memuat Data ${sheet}...`);
             try {
                 const res = await fetchAPI(`${SCRIPT_URL}?action=getAllData&sheet=${sheet}`);
                 currentAdminHeaders = res.headers;
                 renderAdminTable(res.data);
                 hideLoading();
-            } catch(e) { hideLoading(); }
+            } catch(e) {
+                hideLoading(); Swal.fire('Error', 'Gagal memuat data modul', 'error');
+            }
         }
 
         function renderAdminTable(data) {
@@ -585,25 +661,22 @@
             document.getElementById('admin-table-head').innerHTML = head;
 
             let body = '';
-            if(data.length === 0) { body = `<tr><td colspan="${currentAdminHeaders.length + 1}" class="text-center p-6 text-slate-500">Belum ada data.</td></tr>`; } 
-            else {
+            if(data.length === 0) {
+                body = `<tr><td colspan="${currentAdminHeaders.length + 1}" class="text-center p-6 text-slate-500">Belum ada data.</td></tr>`;
+            } else {
                 data.forEach(row => {
-                    body += '<tr class="border-b border-slate-100 hover:bg-slate-50">';
+                    body += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition">';
                     row.forEach((cell, i) => {
                         if(typeof cell === 'string' && cell.startsWith('http')) {
-                            if (cell.includes('/preview')) {
-                                body += `<td class="p-4"><div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500"><i class="fas fa-video"></i></div></td>`;
-                            } else {
-                                body += `<td class="p-4"><img src="${cell}" class="w-12 h-12 object-cover rounded-lg"></td>`;
-                            }
+                            body += `<td class="p-4"><img src="${cell}" class="w-12 h-12 object-cover rounded-lg shadow-sm" loading="lazy"></td>`;
                         } else {
                             let cleanText = typeof cell === 'string' ? cell.replace(/<[^>]*>?/gm, '').substring(0, 60) : cell;
                             body += `<td class="p-4 text-sm align-middle">${cleanText}</td>`;
                         }
                     });
                     body += `<td class="p-4 text-center align-middle">
-                        <button class="bg-amber-100 text-amber-600 p-2 rounded-lg mr-2" onclick="openAdminModal('edit', '${row[0]}')"><i class="fas fa-edit"></i></button>
-                        <button class="bg-red-100 text-red-600 p-2 rounded-lg" onclick="deleteAdminData('${row[0]}')"><i class="fas fa-trash-alt"></i></button>
+                        <button class="bg-amber-100 text-amber-600 hover:bg-amber-200 p-2 rounded-lg mr-2 transition" onclick="openAdminModal('edit', '${row[0]}')" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="bg-red-100 text-red-600 hover:bg-red-200 p-2 rounded-lg transition" onclick="deleteAdminData('${row[0]}')" title="Hapus"><i class="fas fa-trash-alt"></i></button>
                     </td></tr>`;
                 });
             }
@@ -612,12 +685,18 @@
 
         async function openAdminModal(mode, id = null) {
             currentEditId = id;
-            document.getElementById('modal-title').innerText = mode === 'add' ? 'Tambah Data' : 'Edit Data';
+            document.getElementById('modal-title').innerText = mode === 'add' ? 'Tambah Data Baru' : 'Edit Data';
             if (mode === 'edit') {
                 showLoading("Mengambil Data...");
-                const res = await fetchAPI(`${SCRIPT_URL}?action=getById&sheet=${currentAdminSheet}&id=${id}`);
-                hideLoading(); renderAdminForm(res.data);
-            } else { renderAdminForm(null); }
+                try {
+                    const res = await fetchAPI(`${SCRIPT_URL}?action=getById&sheet=${currentAdminSheet}&id=${id}`);
+                    hideLoading(); renderAdminForm(res.data);
+                } catch(e) {
+                    hideLoading(); Swal.fire('Error', 'Gagal memuat detail', 'error');
+                }
+            } else {
+                renderAdminForm(null);
+            }
         }
 
         function renderAdminForm(data) {
@@ -626,60 +705,54 @@
                 if (h === 'ID') return;
                 const val = data ? data[i] : '';
                 const hLower = h.toLowerCase();
+                const isImageField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur')) && !hLower.includes('judul') && !hLower.includes('deskripsi');
+                const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita') || hLower.includes('teks'));
                 
-                // DETEKSI OTOMATIS: Video vs Gambar
-                const isVideoField = hLower.includes('video');
-                const isImageField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur')) && !isVideoField && !hLower.includes('judul');
-                const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita'));
-                
-                if (isVideoField) {
+                if (isImageField) {
                     html += `
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label font-bold text-slate-700">${h} (Video)</label>
-                        <input type="file" class="form-control admin-file py-2 rounded-xl" data-header="${h}" accept="video/mp4,video/webm">
-                        <input type="hidden" class="admin-input" data-header="${h}" value="${val}">
-                        <div class="mt-2 text-xs text-slate-500">Pilih file video (Max 15MB).</div>
-                        ${val ? `<div class="mt-2"><iframe src="${val}" class="h-32 w-full rounded-lg" frameborder="0"></iframe></div>` : ''}
-                    </div>`;
-                } else if (isImageField) {
-                    html += `
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label font-bold text-slate-700">${h} (Gambar)</label>
-                        <input type="file" class="form-control admin-file py-2 rounded-xl" data-header="${h}" accept="image/*">
-                        <input type="hidden" class="admin-input" data-header="${h}" value="${val}">
-                        ${val ? `<div class="mt-2"><img src="${val}" class="h-20 w-auto rounded-lg object-cover"></div>` : ''}
+                    <div class="col-md-6 mb-2">
+                        <label class="form-label font-bold text-slate-700">${h}</label>
+                        <input type="file" class="form-control admin-file py-2 rounded-xl border-slate-300" data-header="${h}" accept="image/*">
+                        <input type="hidden" class="admin-input" data-header="${h}" value="${val}" id="hidden-${h}">
+                        <div class="mt-2 text-xs text-slate-500">Pilih file gambar untuk mengganti.</div>
+                        ${val && String(val).startsWith('http') ? `<div class="mt-2"><img src="${val}" class="h-20 w-auto rounded-lg shadow-sm object-cover" loading="lazy"></div>` : ''}
                     </div>`;
                 } else if (isRichText) {
                     html += `
-                    <div class="col-12 mb-3">
+                    <div class="col-12 mb-2">
                         <label class="form-label font-bold text-slate-700">${h}</label>
                         <textarea class="form-control admin-input rich-text" data-header="${h}">${val}</textarea>
                     </div>`;
                 } else {
                     html += `
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-6 mb-2">
                         <label class="form-label font-bold text-slate-700">${h}</label>
-                        <input type="text" class="form-control admin-input py-2.5 rounded-xl" data-header="${h}" value="${val}">
+                        <input type="text" class="form-control admin-input py-2.5 rounded-xl border-slate-300 focus:ring-blue-500 focus:border-blue-500" data-header="${h}" value="${val}">
                     </div>`;
                 }
             });
 
             document.getElementById('adminForm').innerHTML = html;
-            $('.rich-text').summernote({ height: 250, toolbar: [ ['style', ['style']], ['font', ['bold', 'italic', 'underline', 'clear']], ['color', ['color']], ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']], ['insert', ['link', 'picture', 'video']], ['view', ['fullscreen', 'codeview']] ] });
+
+            $('.rich-text').each(function() {
+                $(this).summernote({
+                    placeholder: 'Tulis konten / deskripsi di sini...', tabsize: 2, height: 250,
+                    toolbar: [ ['style', ['style']], ['font', ['bold', 'italic', 'underline', 'clear']], ['color', ['color']], ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']], ['insert', ['link', 'picture', 'video']], ['view', ['fullscreen', 'codeview', 'help']] ],
+                    callbacks: {
+                        onImageUpload: function(files) {
+                            var $editor = $(this);
+                            for(let i = 0; i < files.length; i++) { uploadImageInline(files[i], $editor); }
+                        }
+                    }
+                });
+            });
+
             new bootstrap.Modal(document.getElementById('adminModal')).show();
         }
 
-        // --- FUNGSI BASE64 UNTUK VIDEO (TANPA KOMPRESI) ---
-        const getBase64 = (file) => new Promise((resolve, reject) => {
+        const compressImage = (file, maxWidth, maxHeight, forceSquare = false) => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-
-        // --- FUNGSI KOMPRESI UNTUK GAMBAR (DENGAN CANVAS) ---
-        const compressImage = (file, maxWidth, maxHeight, forceSquare = false) => new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
@@ -690,82 +763,102 @@
                     
                     if (applyForceSquare) {
                         canvas.width = maxWidth; canvas.height = maxHeight;
-                        const ctx = canvas.getContext('2d'); const size = Math.min(width, height);
-                        ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
+                        const ctx = canvas.getContext('2d');
+                        const size = Math.min(width, height);
+                        const startX = (width - size) / 2;
+                        const startY = (height - size) / 2;
+                        ctx.drawImage(img, startX, startY, size, size, 0, 0, maxWidth, maxHeight);
                     } else {
                         if (width > height) { if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; } } 
                         else { if (height > maxHeight) { width = Math.round((width *= maxHeight / height)); height = maxHeight; } }
                         canvas.width = width; canvas.height = height;
-                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
                     }
-                    resolve(canvas.toDataURL(file.type === 'image/png' && !applyForceSquare ? 'image/png' : 'image/jpeg', 0.8));
+
+                    if(file.type === 'image/png' && !applyForceSquare) resolve(canvas.toDataURL('image/png'));
+                    else resolve(canvas.toDataURL('image/jpeg', 0.8));
                 };
+                img.onerror = error => reject(error);
                 img.src = event.target.result;
             };
+            reader.onerror = error => reject(error);
         });
+
+        async function uploadImageInline(file, $editor) {
+            showLoading("Mengunggah Gambar ke Teks Editor...");
+            try {
+                const base64Str = await compressImage(file, 800, 800, false);
+                const fileName = "inline_" + new Date().getTime() + "_" + file.name;
+                const res = await postAPI({ action: 'uploadImage', base64Data: base64Str, fileName: fileName });
+                hideLoading();
+                if(res.success) { $editor.summernote('insertImage', res.url); } 
+                else { Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error'); }
+            } catch(e) {
+                hideLoading(); Swal.fire('Error Server', 'Gagal memproses file gambar.', 'error');
+            }
+        }
 
         async function saveAdminData() {
             let obj = {}; let isValid = true;
             document.querySelectorAll('.admin-input').forEach(input => {
-                if(input.classList.contains('rich-text')) { obj[input.dataset.header] = $(input).summernote('code'); } 
-                else {
+                if(input.classList.contains('rich-text')) {
+                    obj[input.dataset.header] = $(input).summernote('code');
+                } else {
                     obj[input.dataset.header] = input.value;
-                    if(input.type !== 'hidden' && !input.value) isValid = false;
+                    if(input.type !== 'hidden' && !input.value) { isValid = false; input.classList.add('is-invalid'); } 
+                    else { input.classList.remove('is-invalid'); }
                 }
             });
 
-            if(!isValid) { Swal.fire('Peringatan', 'Lengkapi semua data wajib!', 'warning'); return; }
+            if(!isValid) { Swal.fire('Peringatan', 'Harap lengkapi semua data wajib!', 'warning'); return; }
             
             const fileInputs = document.querySelectorAll('.admin-file');
             for (let fileInput of fileInputs) {
                 const header = fileInput.dataset.header;
                 if (fileInput.files && fileInput.files[0]) {
-                    const file = fileInput.files[0];
-                    
-                    // Batas toleransi upload via Base64 ke Apps Script (Max 15MB)
-                    if (file.size > 15 * 1024 * 1024) { Swal.fire('Peringatan', 'Ukuran file media maksimal 15MB', 'warning'); return; }
-
-                    showLoading("Mengunggah Media...");
+                    showLoading("Memproses dan Mengunggah Gambar...");
                     try {
-                        let base64Str;
-                        if (file.type.startsWith('image/')) {
-                            base64Str = await compressImage(file, 500, 500, true);
-                        } else if (file.type.startsWith('video/')) {
-                            base64Str = await getBase64(file);
-                        }
-
-                        const fileName = "media_" + new Date().getTime() + "_" + file.name;
-                        const uploadRes = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
+                        const base64Str = await compressImage(fileInput.files[0], 500, 500, true);
+                        const fileName = "upload_" + new Date().getTime() + "_" + fileInput.files[0].name;
+                        const uploadRes = await postAPI({ action: 'uploadImage', base64Data: base64Str, fileName: fileName });
                         if (uploadRes.success) { obj[header] = uploadRes.url; } 
-                        else { Swal.fire('Gagal', uploadRes.message, 'error'); hideLoading(); return; }
-                    } catch (e) { Swal.fire('Error', 'Kesalahan upload media', 'error'); hideLoading(); return; }
+                        else { Swal.fire('Gagal Upload', 'Detail: ' + uploadRes.message, 'error'); hideLoading(); return; }
+                    } catch (e) {
+                        Swal.fire('Error', 'Terjadi kesalahan saat upload gambar', 'error'); hideLoading(); return;
+                    }
                 }
             }
 
             showLoading("Menyimpan Data...");
             try {
                 let res;
-                if (currentEditId) res = await postAPI({ action: 'updateData', sheetName: currentAdminSheet, id: currentEditId, dataObj: obj });
-                else res = await postAPI({ action: 'insertData', sheetName: currentAdminSheet, dataObj: obj });
-                
+                if (currentEditId) {
+                    res = await postAPI({ action: 'updateData', sheetName: currentAdminSheet, id: currentEditId, dataObj: obj });
+                } else {
+                    res = await postAPI({ action: 'insertData', sheetName: currentAdminSheet, dataObj: obj });
+                }
                 hideLoading();
                 if(res.success) {
                     bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
                     Swal.fire('Sukses', res.message, 'success');
-                    loadAdminModule(currentAdminSheet); DB.content = {};
+                    loadAdminModule(currentAdminSheet);
+                    DB.content = {};
                 } else { Swal.fire('Error', res.message, 'error'); }
-            } catch(e) { hideLoading(); Swal.fire('Error', 'Gagal menyimpan', 'error'); }
+            } catch(e) { hideLoading(); Swal.fire('Error', 'Gagal menyimpan data', 'error'); }
         }
 
         function deleteAdminData(id) {
-            Swal.fire({ title: 'Yakin hapus data?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya' }).then(async (result) => {
+            Swal.fire({ title: 'Yakin hapus data?', text: "Data tidak dapat dikembalikan!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!'
+            }).then(async (result) => {
                 if (result.isConfirmed) {
                     showLoading("Menghapus Data...");
                     try {
                         const res = await postAPI({ action: 'deleteData', sheetName: currentAdminSheet, id: id });
                         hideLoading();
-                        if(res.success) { loadAdminModule(currentAdminSheet); DB.content = {}; }
-                    } catch(e) { hideLoading(); }
+                        if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
+                        else { Swal.fire('Error', res.message, 'error'); }
+                    } catch(e) { hideLoading(); Swal.fire('Error', 'Gagal menghapus', 'error'); }
                 }
             });
         }
