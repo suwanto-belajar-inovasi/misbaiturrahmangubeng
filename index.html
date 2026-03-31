@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIS Baiturrahman Gubeng</title>
@@ -49,6 +48,7 @@
     <div class="spinner-border text-primary" role="status" style="width: 3.5rem; height: 3.5rem;"></div>
     <p class="mt-4 text-secondary fw-bold" style="font-family: 'Quicksand'; letter-spacing: 1px;" id="loading-text">Memuat Sistem...</p>
   </div>
+  
   <div id="view-site" class="view-section">
     <header class="header-main">
       <div class="logo-section cursor-pointer flex items-center" onclick="nav('home')">
@@ -123,6 +123,7 @@
       </div>
     </footer>
   </div>
+
   <div id="view-login" class="view-section h-screen bg-slate-100 relative">
     <div class="absolute inset-0 bg-blue-900 opacity-90"></div>
     <div class="relative z-10 flex items-center justify-center h-full px-4">
@@ -154,6 +155,7 @@
       </div>
     </div>
   </div>
+
   <div id="view-admin" class="view-section">
     <div class="admin-layout">
       <aside class="sidebar">
@@ -206,6 +208,7 @@
       </main>
     </div>
   </div>
+
   <div class="modal fade" id="adminModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-2xl rounded-3xl">
@@ -223,15 +226,20 @@
       </div>
     </div>
   </div>
+
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <script>
-    let PAGE = "<?= page ?>";
+    // ========================================================
+    // GANTI URL DI BAWAH INI DENGAN URL WEB APP BAPAK
+    // ========================================================
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgEoi2rIGgbmW-R7eEJhTDU6YD0Pr0qPvk-ZDsoQvU6Q3vzLCbR8nxEzSXh8PIibdx/exec"; 
+
     let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9ooKwvGAR5hzbCYxJG7Z-W0Sd9VtiChKnLDV7VCs4or8mbfuo4f5AFslClVM9zken/exec";
     let DB = { config: {}, content: {} };
     let currentAdminSheet = 'Berita';
     let currentAdminHeaders = [];
@@ -241,6 +249,25 @@
       AOS.init({ once: true, offset: 50 });
       initView();
     });
+
+    // --- FUNGSI FETCH (PENGGANTI GOOGLE.SCRIPT.RUN UNTUK GITHUB) ---
+    async function fetchAPI(action, params = "") {
+        try {
+            const response = await fetch(`${SCRIPT_URL}?action=${action}${params}`);
+            return await response.json();
+        } catch (error) { throw error; }
+    }
+
+    async function postAPI(data) {
+        try {
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) { throw error; }
+    }
 
     // FUNGSI UNTUK MERENDER GAMBAR/VIDEO OTOMATIS
     function renderMedia(url, classes, alt = "Media") {
@@ -254,10 +281,7 @@
 
     function initView() {
       document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-      if (PAGE === 'admin' && !IS_AUTH) {
-        showLoginView();
-        hideLoading();
-      } else if (IS_AUTH) {
+      if (IS_AUTH) {
         document.getElementById('view-admin').classList.add('active');
         loadAdminDashboard();
       } else {
@@ -295,47 +319,32 @@
 
     function nav(section) {
       document.querySelectorAll('.site-section').forEach(s => s.classList.add('hidden'));
-      document.getElementById('section-' + section).classList.remove('hidden');
+      const targetSection = document.getElementById('section-' + section);
+      if(targetSection) targetSection.classList.remove('hidden');
+      
       document.querySelectorAll('.nav-menu a').forEach(a => a.classList.remove('active-link'));
       const activeLink = document.getElementById('link-' + section);
       if(activeLink) activeLink.classList.add('active-link');
+      
       if (section !== 'home' && section !== 'baca') {
         renderSection(section);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function loadSiteData() {
+    async function loadSiteData() {
       showLoading("Memuat Data Website...");
-      google.script.run
-        .withSuccessHandler(data => {
-          try {
-            DB.config = data;
-            renderConfig();
-            google.script.run
-              .withSuccessHandler(content => {
-                try {
-                  DB.content = content;
-                  renderHome();
-                  hideLoading();
-                } catch(e) {
-                  console.error("Render home error:", e);
-                  hideLoading();
-                }
-              })
-              .withFailureHandler(e => { console.error(e); hideLoading(); })
-              .getContentData();
-          } catch(e) {
-            console.error("Render config error:", e);
-            hideLoading();
-          }
-        })
-        .withFailureHandler(e => {
-          console.error("Config fetch error:", e);
-          hideLoading();
-          Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang halaman.', 'error');
-        })
-        .getSiteConfig();
+      try {
+        DB.config = await fetchAPI('getSiteConfig');
+        renderConfig();
+        
+        DB.content = await fetchAPI('getContentData');
+        renderHome();
+        hideLoading();
+      } catch (e) {
+        hideLoading();
+        Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang.', 'error');
+      }
     }
 
     function renderConfig() {
@@ -565,16 +574,17 @@
       `;
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const u = document.getElementById('login-user').value;
       const p = document.getElementById('login-pass').value;
       showLoading("Proses Login...");
-      google.script.run.withSuccessHandler(res => {
+      
+      try {
+        const res = await postAPI({ action: 'login', username: u, password: p });
         if (res.success) {
           sessionStorage.setItem('IS_ADMIN', 'true');
           IS_AUTH = true;
-          PAGE = 'admin';
           hideLoading();
           Swal.fire({icon: 'success', title: 'Login Berhasil', timer: 1500, showConfirmButton: false}).then(() => {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
@@ -584,7 +594,9 @@
         } else {
           hideLoading(); Swal.fire('Login Gagal', res.message, 'error');
         }
-      }).login(u, p);
+      } catch (err) {
+        hideLoading(); Swal.fire('Error Server', 'Koneksi ke database gagal.', 'error');
+      }
     }
 
     function handleLogout() {
@@ -594,20 +606,21 @@
           showLoading("Keluar Sistem...");
           sessionStorage.removeItem('IS_ADMIN');
           IS_AUTH = false;
-          PAGE = 'home';
           hideLoading();
           showSiteView();
         }
       });
     }
 
-    function loadAdminDashboard() {
+    async function loadAdminDashboard() {
       document.getElementById('admin-table-view').classList.add('hidden');
       document.getElementById('admin-dashboard-view').classList.remove('hidden');
       document.querySelectorAll('.admin-nav').forEach(n => n.classList.remove('active'));
       document.getElementById('nav-Dashboard').classList.add('active');
       showLoading("Memuat Data Dashboard...");
-      google.script.run.withSuccessHandler(stats => {
+      
+      try {
+        const stats = await fetchAPI('getDashboardStats');
         document.getElementById('dashboard-stats-container').innerHTML = `
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Berita</h3><p class="text-4xl font-bold text-slate-800">${stats.totalBerita}</p></div><div class="p-4 bg-blue-50 rounded-full"><i class="fas fa-newspaper text-blue-500 text-2xl"></i></div></div></div>
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Guru</h3><p class="text-4xl font-bold text-slate-800">${stats.totalGuru}</p></div><div class="p-4 bg-emerald-50 rounded-full"><i class="fas fa-chalkboard-teacher text-emerald-500 text-2xl"></i></div></div></div>
@@ -615,10 +628,12 @@
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Modul Profil</h3><p class="text-4xl font-bold text-slate-800">${stats.totalProfil}</p></div><div class="p-4 bg-purple-50 rounded-full"><i class="fas fa-school text-purple-500 text-2xl"></i></div></div></div>
         `;
         hideLoading();
-      }).getDashboardStats();
+      } catch(e) {
+        hideLoading();
+      }
     }
 
-    function loadAdminModule(sheet) {
+    async function loadAdminModule(sheet) {
       currentAdminSheet = sheet;
       document.getElementById('admin-dashboard-view').classList.add('hidden');
       document.getElementById('admin-table-view').classList.remove('hidden');
@@ -629,11 +644,14 @@
       if(activeNav) activeNav.classList.add('active');
 
       showLoading(`Memuat Data ${sheet}...`);
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await fetchAPI('getAllData', `&sheet=${sheet}`);
         currentAdminHeaders = res.headers;
         renderAdminTable(res.data);
         hideLoading();
-      }).getAllData(sheet);
+      } catch (e) {
+        hideLoading(); Swal.fire('Error', 'Gagal memuat data.', 'error');
+      }
     }
 
     function renderAdminTable(data) {
@@ -672,14 +690,18 @@
       document.getElementById('admin-table-body').innerHTML = body;
     }
 
-    function openAdminModal(mode, id = null) {
+    async function openAdminModal(mode, id = null) {
       currentEditId = id;
       document.getElementById('modal-title').innerText = mode === 'add' ? 'Tambah Data Baru' : 'Edit Data';
       if (mode === 'edit') {
         showLoading("Mengambil Data...");
-        google.script.run.withSuccessHandler(res => {
-          hideLoading(); renderAdminForm(res.data);
-        }).getById(currentAdminSheet, id);
+        try {
+          const res = await fetchAPI('getById', `&sheet=${currentAdminSheet}&id=${id}`);
+          hideLoading(); 
+          renderAdminForm(res.data);
+        } catch(e) {
+          hideLoading(); Swal.fire('Error', 'Gagal membuka form', 'error');
+        }
       } else {
         renderAdminForm(null);
       }
@@ -751,23 +773,20 @@
         let base64Str = isVideo ? await getBase64(file) : await compressImage(file, 800, 800, false);
         const fileName = (isVideo ? "video_" : "inline_") + new Date().getTime() + "_" + file.name;
         
-        google.script.run.withSuccessHandler(res => {
-          hideLoading();
-          if(res.success) {
-            if(isVideo) {
-                const node = document.createElement('div');
-                node.innerHTML = `<br><iframe src="${res.url}" width="100%" height="315" style="border:none; border-radius:12px;" allow="autoplay; encrypted-media" allowfullscreen></iframe><br>`;
-                context.invoke('editor.insertNode', node);
-            } else {
-                context.invoke('editor.insertImage', res.url);
-            }
+        const res = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
+        hideLoading();
+        
+        if(res.success) {
+          if(isVideo) {
+              const node = document.createElement('div');
+              node.innerHTML = `<br><iframe src="${res.url}" width="100%" height="315" style="border:none; border-radius:12px;" allow="autoplay; encrypted-media" allowfullscreen></iframe><br>`;
+              context.invoke('editor.insertNode', node);
           } else {
-            Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
+              context.invoke('editor.insertImage', res.url);
           }
-        }).withFailureHandler(err => {
-          hideLoading();
-          Swal.fire('Error Server', err.message, 'error');
-        }).uploadMediaToDrive(base64Str, fileName);
+        } else {
+          Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
+        }
       } catch(e) {
         hideLoading();
         Swal.fire('Error', 'Gagal memproses file.', 'error');
@@ -781,7 +800,6 @@
         const val = data ? data[i] : '';
         const hLower = h.toLowerCase();
 
-        // DETEKSI LOGIKA UNTUK SEMUA MEDIA (GAMBAR/VIDEO)
         const isMediaField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur') || hLower.includes('video') || hLower.includes('file') || hLower.includes('media') || hLower.includes('galeri')) && !hLower.includes('judul') && !hLower.includes('deskripsi');
         const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita') || hLower.includes('teks'));
         
@@ -848,8 +866,7 @@
             ['color', ['color']],
             ['para', ['ul', 'ol', 'paragraph']],
             ['table', ['table']],
-            // PERHATIKAN: 'video' asli dihapus, diganti 'customVideo'
-            ['insert', ['link', 'picture', 'customVideo']],
+            ['insert', ['link', 'picture', 'customVideo']], // Tombol customVideo
             ['view', ['fullscreen', 'codeview', 'help']]
           ],
           buttons: {
@@ -906,9 +923,7 @@
                 }
                 const fileName = "media_" + new Date().getTime() + "_" + file.name;
                 
-                const uploadRes = await new Promise((resolve, reject) => {
-                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).uploadMediaToDrive(base64Str, fileName);
-                });
+                const uploadRes = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
 
                 if (uploadRes.success) {
                     obj[header] = uploadRes.url;
@@ -924,36 +939,42 @@
       }
 
       showLoading("Memperbarui Database...");
-      if (currentEditId) {
-        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).updateData(currentAdminSheet, currentEditId, obj);
-      } else {
-        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).insertData(currentAdminSheet, obj);
-      }
-    }
-
-    function handleSaveResponse(res) {
-      hideLoading();
-      if(res.success) {
-        bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
-        Swal.fire('Sukses', res.message, 'success');
-        loadAdminModule(currentAdminSheet);
-        DB.content = {};
-      } else {
-        Swal.fire('Error', res.message, 'error');
+      try {
+        let res;
+        if (currentEditId) {
+          res = await postAPI({ action: 'updateData', sheetName: currentAdminSheet, id: currentEditId, dataObj: obj });
+        } else {
+          res = await postAPI({ action: 'insertData', sheetName: currentAdminSheet, dataObj: obj });
+        }
+        
+        hideLoading();
+        if(res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
+          Swal.fire('Sukses', res.message, 'success');
+          loadAdminModule(currentAdminSheet);
+          DB.content = {};
+        } else {
+          Swal.fire('Error', res.message, 'error');
+        }
+      } catch (e) {
+        hideLoading(); Swal.fire('Error', 'Gagal menyimpan data.', 'error');
       }
     }
 
     function deleteAdminData(id) {
       Swal.fire({
         title: 'Yakin hapus data?', text: "Data tidak dapat dikembalikan!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!'
-      }).then((result) => {
+      }).then(async (result) => {
         if (result.isConfirmed) {
           showLoading("Menghapus Data...");
-          google.script.run.withSuccessHandler(res => {
-              hideLoading();
-              if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
-              else { Swal.fire('Error', res.message, 'error'); }
-          }).deleteData(currentAdminSheet, id);
+          try {
+            const res = await postAPI({ action: 'deleteData', sheetName: currentAdminSheet, id: id });
+            hideLoading();
+            if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
+            else { Swal.fire('Error', res.message, 'error'); }
+          } catch(e) {
+            hideLoading(); Swal.fire('Error', 'Gagal menghapus data.', 'error');
+          }
         }
       });
     }
