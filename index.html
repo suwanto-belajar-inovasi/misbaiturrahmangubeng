@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIS Baiturrahman Gubeng</title>
@@ -38,10 +37,6 @@
     .guru-img { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; margin: 0 auto 15px; border: 5px solid #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: transform 0.3s; }
     .guru-img:hover { transform: scale(1.05); }
     .line-title { width: 60px; height: 4px; background-color: #fd5308; margin: 15px auto; border-radius: 2px; }
-    .note-modal-backdrop { z-index: 1040 !important; }
-    .note-modal { z-index: 1050 !important; }
-    .note-editor .note-editing-area .note-editable img { max-width: 100%; height: auto; }
-    video { max-width: 100%; border-radius: 8px; }
     main#site-content { flex: 1; }
   </style>
 </head>
@@ -238,11 +233,12 @@
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<script>
+  <script>
     // ========================================================
-    // GANTI URL DI BAWAH INI DENGAN URL WEB APP BAPAK
+    // GANTI STRING INI DENGAN URL WEB APP DARI GOOGLE APPS SCRIPT BAPAK
+    // Contoh: "https://script.google.com/macros/s/AKfycb.../exec"
     // ========================================================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgEoi2rIGgbmW-R7eEJhTDU6YD0Pr0qPvk-ZDsoQvU6Q3vzLCbR8nxEzSXh8PIibdx/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwSIXAF4BWcO826f9S2LzoOd_yW1EPAvpShb-LYBFUc74UKuV-N9Zd0KTm4ce7xgycL/exec"; 
 
     let IS_AUTH = sessionStorage.getItem('IS_ADMIN') === 'true';
     let DB = { config: {}, content: {} };
@@ -255,9 +251,29 @@
       initView();
     });
 
-    // --- FUNGSI MENGONVERSI URL VIDEO GOOGLE DRIVE AGAR LANGSUNG MAIN (PLAYABLE) ---
+    // --- FUNGSI FETCH UNTUK REST API (PENGGANTI google.script.run) ---
+    async function fetchAPI(action, params = "") {
+        try {
+            const response = await fetch(`${SCRIPT_URL}?action=${action}${params}`);
+            return await response.json();
+        } catch (error) { throw error; }
+    }
+
+    async function postAPI(data) {
+        try {
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) { throw error; }
+    }
+
+    // --- FUNGSI MENGONVERSI URL VIDEO (MENCEGAH LOADING DRIVE) ---
     function getPlayableVideoUrl(url) {
         if (!url) return '';
+        // Ubah otomatis link preview lawas menjadi link streaming
         if (url.includes('/preview')) {
             const match = url.match(/\/d\/(.*?)\/preview/);
             if (match && match[1]) return `https://drive.google.com/uc?export=download&id=${match[1]}`;
@@ -265,59 +281,22 @@
         return url;
     }
 
-    // --- MERENDER THUMBNAIL/MEDIA CERDAS UNTUK KARTU (CARD) ---
+    // --- MERENDER THUMBNAIL CARD / KOTAK ---
     function renderMedia(url, classes, alt = "Media") {
         if (!url) return '';
         url = getPlayableVideoUrl(url);
 
         if (url.includes('export=download')) {
-            // #t=0.1 adalah trik HTML5 agar frame pertama video muncul sebagai gambar thumbnail
-            return `<video preload="metadata" class="${classes}" style="background-color: #1e293b; object-fit: cover;" src="${url}#t=0.1" muted playsinline></video>`;
+            // #t=0.1 memicu frame pertama video sebagai gambar diam sebelum diputar
+            return `<video class="${classes}" style="object-fit: cover; background-color: #1e293b;" src="${url}#t=0.1" muted playsinline preload="metadata"></video>`;
         } else {
             return `<img src="${url}" class="${classes}" alt="${alt}" loading="lazy">`;
         }
     }
 
-    // --- MERENDER ISI MEDIA DI HALAMAN BACA BERITA ---
-    function getMediaHtmlForBerita(url) {
-        if (!url) return '';
-        url = getPlayableVideoUrl(url);
-
-        if (url.includes('export=download')) {
-            return `<div class="mb-10"><video controls playsinline preload="metadata" src="${url}" class="w-full rounded-2xl shadow-sm" style="max-height: 500px; background: #000;"></video></div>`;
-        } else {
-            return `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm"><img src="${url}" class="w-full h-auto max-h-[500px] object-cover"></div>`;
-        }
-    }
-
-    // --- MERENDER PREVIEW DI FORM ADMIN ---
-    function getPreviewHtmlForAdmin(url) {
-        if (!url) return '';
-        url = getPlayableVideoUrl(url);
-
-        if (url.includes('export=download')) {
-            return `<div class="mt-2"><video controls src="${url}#t=0.1" class="h-32 w-full rounded-lg shadow-sm" style="background: #000; object-fit: contain;"></video></div>`;
-        } else {
-            return `<div class="mt-2"><img src="${url}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`;
-        }
-    }
-
-    function getThumbHtmlForAdminTable(url) {
-        if (!url) return '';
-        url = getPlayableVideoUrl(url);
-        if (url.includes('export=download')) {
-            return `<div class="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-white shadow-sm"><i class="fas fa-video"></i></div>`;
-        } else {
-            return `<img src="${url}" class="w-12 h-12 object-cover rounded-lg shadow-sm">`;
-        }
-    }
-
     function initView() {
       document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-      if (PAGE === 'admin' && !IS_AUTH) {
-        showLoginView();
-        hideLoading();
-      } else if (IS_AUTH) {
+      if (IS_AUTH) {
         document.getElementById('view-admin').classList.add('active');
         loadAdminDashboard();
       } else {
@@ -355,47 +334,32 @@
 
     function nav(section) {
       document.querySelectorAll('.site-section').forEach(s => s.classList.add('hidden'));
-      document.getElementById('section-' + section).classList.remove('hidden');
+      const targetSection = document.getElementById('section-' + section);
+      if(targetSection) targetSection.classList.remove('hidden');
+      
       document.querySelectorAll('.nav-menu a').forEach(a => a.classList.remove('active-link'));
       const activeLink = document.getElementById('link-' + section);
       if(activeLink) activeLink.classList.add('active-link');
+      
       if (section !== 'home' && section !== 'baca') {
         renderSection(section);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function loadSiteData() {
+    async function loadSiteData() {
       showLoading("Memuat Data Website...");
-      google.script.run
-        .withSuccessHandler(data => {
-          try {
-            DB.config = data;
-            renderConfig();
-            google.script.run
-              .withSuccessHandler(content => {
-                try {
-                  DB.content = content;
-                  renderHome();
-                  hideLoading();
-                } catch(e) {
-                  console.error("Render home error:", e);
-                  hideLoading();
-                }
-              })
-              .withFailureHandler(e => { console.error(e); hideLoading(); })
-              .getContentData();
-          } catch(e) {
-            console.error("Render config error:", e);
-            hideLoading();
-          }
-        })
-        .withFailureHandler(e => {
-          console.error("Config fetch error:", e);
-          hideLoading();
-          Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang halaman.', 'error');
-        })
-        .getSiteConfig();
+      try {
+        DB.config = await fetchAPI('getSiteConfig');
+        renderConfig();
+        
+        DB.content = await fetchAPI('getContentData');
+        renderHome();
+        hideLoading();
+      } catch (e) {
+        hideLoading();
+        Swal.fire('Error', 'Gagal terhubung ke database. Silakan muat ulang halaman.', 'error');
+      }
     }
 
     function renderConfig() {
@@ -442,7 +406,8 @@
         latestBerita.forEach((r, idx) => {
           let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
           
-          let playIconHtml = (imgUrl.includes('/preview') || imgUrl.includes('export=download')) 
+          let playableUrl = getPlayableVideoUrl(imgUrl);
+          let playIconHtml = playableUrl.includes('export=download') 
                              ? `<div class="absolute inset-0 bg-black/30 flex items-center justify-center z-10 pointer-events-none"><i class="fas fa-play-circle text-white text-5xl opacity-80"></i></div>` 
                              : '';
 
@@ -451,7 +416,7 @@
             <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
               <div style="height:220px; overflow:hidden; position:relative;">
                 ${playIconHtml}
-                ${renderMedia(imgUrl, "card-img-top w-full h-full object-cover transition-transform duration-500 hover:scale-110", "Cover Berita")}
+                ${renderMedia(imgUrl, "card-img-top w-full h-full transition-transform duration-500 hover:scale-110", "Cover Berita")}
               </div>
               <div class="card-body p-6 flex-1 flex flex-col">
                 <span class="text-xs font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full mb-3 inline-block w-max">Berita Baru</span>
@@ -561,7 +526,8 @@
         [...dataBerita].reverse().forEach((r, i) => {
           let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
           
-          let playIconHtml = (imgUrl.includes('/preview') || imgUrl.includes('export=download')) 
+          let playableUrl = getPlayableVideoUrl(imgUrl);
+          let playIconHtml = playableUrl.includes('export=download') 
                              ? `<div class="absolute inset-0 bg-black/30 flex items-center justify-center z-10 pointer-events-none"><i class="fas fa-play-circle text-white text-5xl opacity-80"></i></div>` 
                              : '';
 
@@ -570,7 +536,7 @@
             <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
               <div style="height:220px; overflow:hidden; position:relative;">
                 ${playIconHtml}
-                ${renderMedia(imgUrl, "card-img-top w-full h-full object-cover transition-transform duration-500 hover:scale-110", "Cover Berita")}
+                ${renderMedia(imgUrl, "card-img-top w-full h-full transition-transform duration-500 hover:scale-110", "Cover Berita")}
               </div>
               <div class="card-body p-5 flex flex-col">
                 <h5 class="font-bold text-lg mb-2">${r[1] || 'Tanpa Judul'}</h5>
@@ -591,7 +557,7 @@
           
           let playableUrl = getPlayableVideoUrl(imgUrl);
           let mediaHtml = playableUrl.includes('export=download')
-              ? `<video controls playsinline src="${playableUrl}#t=0.1" class="w-full h-56 rounded-xl mb-3" style="background: #000; object-fit: cover;"></video>`
+              ? `<video controls playsinline src="${playableUrl}" class="w-full h-56 rounded-xl mb-3" style="background: #000; object-fit: cover;"></video>`
               : `<img src="${playableUrl}" class="w-full h-56 object-cover rounded-xl mb-3" alt="Galeri">`;
 
           html += `
@@ -614,6 +580,17 @@
       let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : r.find(c => /^https?:\/\/[^\s]+$/.test(String(c)));
 
       nav('baca');
+      
+      let playableUrl = getPlayableVideoUrl(imgUrl);
+      let mediaHtml = '';
+      if (playableUrl) {
+          if (playableUrl.includes('export=download')) {
+              mediaHtml = `<div class="mb-10"><video controls playsinline preload="metadata" src="${playableUrl}" class="w-full rounded-2xl shadow-sm" style="max-height: 500px; background: #000;"></video></div>`;
+          } else {
+              mediaHtml = `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm"><img src="${playableUrl}" class="w-full h-auto max-h-[500px] object-cover"></div>`;
+          }
+      }
+
       document.getElementById('section-baca').innerHTML = `
       <div class="max-w-4xl mx-auto">
         <button onclick="nav('berita')" class="mb-6 btn btn-light rounded-full px-4 font-bold text-slate-600 shadow-sm hover:bg-slate-200 transition">
@@ -623,7 +600,7 @@
           <span class="text-orange-600 font-bold bg-orange-50 px-4 py-2 rounded-full text-sm inline-block mb-4">Berita Terkini</span>
           <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-6 leading-tight">${r[1] || 'Tanpa Judul'}</h1>
           
-          ${getMediaHtmlForBerita(imgUrl)}
+          ${mediaHtml}
 
           <div class="prose max-w-none text-slate-700 leading-loose text-lg text-justify" style="font-family:'Open Sans', sans-serif;">
             ${r[3] || ''}
@@ -633,16 +610,17 @@
       `;
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const u = document.getElementById('login-user').value;
       const p = document.getElementById('login-pass').value;
       showLoading("Proses Login...");
-      google.script.run.withSuccessHandler(res => {
+      
+      try {
+        const res = await postAPI({ action: 'login', username: u, password: p });
         if (res.success) {
           sessionStorage.setItem('IS_ADMIN', 'true');
           IS_AUTH = true;
-          PAGE = 'admin';
           hideLoading();
           Swal.fire({icon: 'success', title: 'Login Berhasil', timer: 1500, showConfirmButton: false}).then(() => {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
@@ -652,7 +630,9 @@
         } else {
           hideLoading(); Swal.fire('Login Gagal', res.message, 'error');
         }
-      }).login(u, p);
+      } catch (err) {
+        hideLoading(); Swal.fire('Error Server', 'Koneksi ke database gagal.', 'error');
+      }
     }
 
     function handleLogout() {
@@ -662,20 +642,21 @@
           showLoading("Keluar Sistem...");
           sessionStorage.removeItem('IS_ADMIN');
           IS_AUTH = false;
-          PAGE = 'home';
           hideLoading();
           showSiteView();
         }
       });
     }
 
-    function loadAdminDashboard() {
+    async function loadAdminDashboard() {
       document.getElementById('admin-table-view').classList.add('hidden');
       document.getElementById('admin-dashboard-view').classList.remove('hidden');
       document.querySelectorAll('.admin-nav').forEach(n => n.classList.remove('active'));
       document.getElementById('nav-Dashboard').classList.add('active');
       showLoading("Memuat Data Dashboard...");
-      google.script.run.withSuccessHandler(stats => {
+      
+      try {
+        const stats = await fetchAPI('getDashboardStats');
         document.getElementById('dashboard-stats-container').innerHTML = `
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Berita</h3><p class="text-4xl font-bold text-slate-800">${stats.totalBerita}</p></div><div class="p-4 bg-blue-50 rounded-full"><i class="fas fa-newspaper text-blue-500 text-2xl"></i></div></div></div>
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Total Guru</h3><p class="text-4xl font-bold text-slate-800">${stats.totalGuru}</p></div><div class="p-4 bg-emerald-50 rounded-full"><i class="fas fa-chalkboard-teacher text-emerald-500 text-2xl"></i></div></div></div>
@@ -683,10 +664,12 @@
         <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500"><div class="flex justify-between items-center"><div><h3 class="text-slate-400 text-sm font-bold uppercase mb-1">Modul Profil</h3><p class="text-4xl font-bold text-slate-800">${stats.totalProfil}</p></div><div class="p-4 bg-purple-50 rounded-full"><i class="fas fa-school text-purple-500 text-2xl"></i></div></div></div>
         `;
         hideLoading();
-      }).getDashboardStats();
+      } catch(e) {
+        hideLoading();
+      }
     }
 
-    function loadAdminModule(sheet) {
+    async function loadAdminModule(sheet) {
       currentAdminSheet = sheet;
       document.getElementById('admin-dashboard-view').classList.add('hidden');
       document.getElementById('admin-table-view').classList.remove('hidden');
@@ -697,11 +680,14 @@
       if(activeNav) activeNav.classList.add('active');
 
       showLoading(`Memuat Data ${sheet}...`);
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await fetchAPI('getAllData', `&sheet=${sheet}`);
         currentAdminHeaders = res.headers;
         renderAdminTable(res.data);
         hideLoading();
-      }).getAllData(sheet);
+      } catch (e) {
+        hideLoading(); Swal.fire('Error', 'Gagal memuat data.', 'error');
+      }
     }
 
     function renderAdminTable(data) {
@@ -721,7 +707,12 @@
           body += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition">';
           row.forEach((cell, i) => {
             if(typeof cell === 'string' && cell.startsWith('http')) {
-              body += `<td class="p-4">${getThumbHtmlForAdminTable(cell)}</td>`;
+              let playableUrl = getPlayableVideoUrl(cell);
+              if (playableUrl.includes('export=download')) {
+                  body += `<td class="p-4"><div class="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-white shadow-sm"><i class="fas fa-video"></i></div></td>`;
+              } else {
+                  body += `<td class="p-4"><img src="${playableUrl}" class="w-12 h-12 object-cover rounded-lg shadow-sm"></td>`;
+              }
             } else {
               let cleanText = typeof cell === 'string' ? cell.replace(/<[^>]*>?/gm, '').substring(0, 60) : cell;
               body += `<td class="p-4 text-sm align-middle">${cleanText}</td>`;
@@ -736,20 +727,23 @@
       document.getElementById('admin-table-body').innerHTML = body;
     }
 
-    function openAdminModal(mode, id = null) {
+    async function openAdminModal(mode, id = null) {
       currentEditId = id;
       document.getElementById('modal-title').innerText = mode === 'add' ? 'Tambah Data Baru' : 'Edit Data';
       if (mode === 'edit') {
         showLoading("Mengambil Data...");
-        google.script.run.withSuccessHandler(res => {
-          hideLoading(); renderAdminForm(res.data);
-        }).getById(currentAdminSheet, id);
+        try {
+          const res = await fetchAPI('getById', `&sheet=${currentAdminSheet}&id=${id}`);
+          hideLoading(); 
+          renderAdminForm(res.data);
+        } catch(e) {
+          hideLoading(); Swal.fire('Error', 'Gagal membuka form', 'error');
+        }
       } else {
         renderAdminForm(null);
       }
     }
 
-    // --- FUNGSI BASE64 UNTUK VIDEO ---
     const getBase64 = (file) => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -775,32 +769,18 @@
             canvas.height = maxHeight;
             const ctx = canvas.getContext('2d');
             const size = Math.min(width, height);
-            const startX = (width - size) / 2;
-            const startY = (height - size) / 2;
-            ctx.drawImage(img, startX, startY, size, size, 0, 0, maxWidth, maxHeight);
+            ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
           } else {
             if (width > height) {
-              if (width > maxWidth) {
-                height = Math.round((height *= maxWidth / width));
-                width = maxWidth;
-              }
+              if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; }
             } else {
-              if (height > maxHeight) {
-                width = Math.round((width *= maxHeight / height));
-                height = maxHeight;
-              }
+              if (height > maxHeight) { width = Math.round((width *= maxHeight / height)); height = maxHeight; }
             }
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
           }
-
-          if(file.type === 'image/png' && !applyForceSquare) {
-            resolve(canvas.toDataURL('image/png'));
-          } else {
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-          }
+          resolve(canvas.toDataURL(file.type === 'image/png' && !applyForceSquare ? 'image/png' : 'image/jpeg', 0.8));
         };
         img.onerror = error => reject(error);
         img.src = event.target.result;
@@ -808,33 +788,29 @@
       reader.onerror = error => reject(error);
     });
 
-    // --- UPLOAD INLINE EDITOR (GAMBAR / VIDEO) ---
     async function uploadMediaInline(file, context, isVideo) {
-      showLoading(`Mengunggah ${isVideo ? 'Video' : 'Gambar'} ke Teks Editor...`);
+      showLoading(`Mengunggah ${isVideo ? 'Video' : 'Gambar'} ke Editor...`);
       try {
         let base64Str = isVideo ? await getBase64(file) : await compressImage(file, 800, 800, false);
         const fileName = (isVideo ? "video_" : "inline_") + new Date().getTime() + "_" + file.name;
         
-        google.script.run.withSuccessHandler(res => {
-          hideLoading();
-          if(res.success) {
-            if(isVideo) {
-                const node = document.createElement('div');
-                node.innerHTML = `<br><video controls playsinline src="${res.url}" width="100%" style="border-radius:12px; max-height: 400px; background: #000;"></video><br>`;
-                context.invoke('editor.insertNode', node);
-            } else {
-                context.invoke('editor.insertImage', res.url);
-            }
-          } else {
-            Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
-          }
-        }).withFailureHandler(err => {
-          hideLoading();
-          Swal.fire('Error Server', err.message, 'error');
-        }).uploadMediaToDrive(base64Str, fileName);
-      } catch(e) {
+        const res = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
         hideLoading();
-        Swal.fire('Error', 'Gagal memproses file.', 'error');
+        
+        if(res.success) {
+          if(isVideo) {
+              const playableUrl = getPlayableVideoUrl(res.url);
+              const node = document.createElement('div');
+              node.innerHTML = `<br><video controls playsinline src="${playableUrl}" width="100%" style="border-radius:12px; max-height: 400px; background: #000;"></video><br>`;
+              context.invoke('editor.insertNode', node);
+          } else {
+              context.invoke('editor.insertImage', res.url);
+          }
+        } else {
+          Swal.fire('Gagal Upload', 'Error: ' + res.message, 'error');
+        }
+      } catch(e) {
+        hideLoading(); Swal.fire('Error', 'Gagal memproses file.', 'error');
       }
     }
 
@@ -845,28 +821,37 @@
         const val = data ? data[i] : '';
         const hLower = h.toLowerCase();
 
-        // DETEKSI LOGIKA UNTUK SEMUA MEDIA (GAMBAR/VIDEO)
         const isMediaField = (hLower.includes('gambar') || hLower.includes('foto') || hLower.includes('cover') || hLower.includes('logo') || hLower.includes('brosur') || hLower.includes('video') || hLower.includes('file') || hLower.includes('media') || hLower.includes('galeri')) && !hLower.includes('judul') && !hLower.includes('deskripsi');
         const isRichText = (hLower.includes('isi') || hLower.includes('konten') || hLower.includes('deskripsi') || hLower.includes('berita') || hLower.includes('teks'));
         
         if (isMediaField) {
+          let previewHtml = '';
+          if (val) {
+             let playableUrl = getPlayableVideoUrl(val);
+             if (playableUrl.includes('export=download')) {
+                 previewHtml = `<div class="mt-2"><video controls src="${playableUrl}#t=0.1" class="h-32 w-full rounded-lg shadow-sm" style="background: #000; object-fit: contain;"></video></div>`;
+             } else {
+                 previewHtml = `<div class="mt-2"><img src="${playableUrl}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`;
+             }
+          }
+
           html += `
-          <div class="col-md-6 mb-2">
+          <div class="col-md-6 mb-3">
             <label class="form-label font-bold text-slate-700">${h} (Gambar / Video)</label>
             <input type="file" class="form-control admin-file py-2 rounded-xl border-slate-300" data-header="${h}" accept="image/*,video/mp4,video/webm">
-            <input type="hidden" class="admin-input" data-header="${h}" value="${val}" id="hidden-${h}">
-            <div class="mt-2 text-xs text-slate-500">Pilih file gambar atau video (Max 15MB).</div>
-            ${val ? getPreviewHtmlForAdmin(val) : ''}
+            <input type="hidden" class="admin-input" data-header="${h}" value="${val}">
+            <div class="mt-2 text-xs text-slate-500">Pilih gambar atau video MP4 (Max 15MB).</div>
+            ${previewHtml}
           </div>`;
         } else if (isRichText) {
           html += `
-          <div class="col-12 mb-2">
+          <div class="col-12 mb-3">
             <label class="form-label font-bold text-slate-700">${h}</label>
             <textarea class="form-control admin-input rich-text" data-header="${h}">${val}</textarea>
           </div>`;
         } else {
           html += `
-          <div class="col-md-6 mb-2">
+          <div class="col-md-6 mb-3">
             <label class="form-label font-bold text-slate-700">${h}</label>
             <input type="text" class="form-control admin-input py-2.5 rounded-xl border-slate-300 focus:ring-blue-500 focus:border-blue-500" data-header="${h}" value="${val}">
           </div>`;
@@ -875,12 +860,11 @@
 
       document.getElementById('adminForm').innerHTML = html;
 
-      // MEMBUAT TOMBOL "UPLOAD VIDEO" KUSTOM UNTUK EDITOR
       var CustomVideoBtn = function (context) {
           var ui = $.summernote.ui;
           var button = ui.button({
               contents: '<i class="fas fa-file-video text-danger"></i> <b>Upload Video</b>',
-              tooltip: 'Upload Video (MP4) dari Perangkat (Maksimal 15MB)',
+              tooltip: 'Upload Video (MP4) dari Perangkat (Maks 15MB)',
               click: function () {
                   var fileInput = document.createElement('input');
                   fileInput.type = 'file';
@@ -900,7 +884,7 @@
 
       $('.rich-text').each(function() {
         $(this).summernote({
-          placeholder: 'Tulis konten / deskripsi di sini...',
+          placeholder: 'Tulis konten di sini...',
           tabsize: 2,
           height: 300,
           toolbar: [
@@ -909,9 +893,8 @@
             ['color', ['color']],
             ['para', ['ul', 'ol', 'paragraph']],
             ['table', ['table']],
-            // Tombol video bawaan dihapus dan diganti dengan 'customVideoBtn' milik kita
             ['insert', ['link', 'picture', 'customVideoBtn']], 
-            ['view', ['fullscreen', 'codeview', 'help']]
+            ['view', ['fullscreen', 'codeview']]
           ],
           buttons: {
               customVideoBtn: CustomVideoBtn
@@ -957,7 +940,7 @@
             const file = fileInput.files[0];
             if (file.size > 15 * 1024 * 1024) { Swal.fire('Peringatan', 'Ukuran file media maksimal 15MB', 'warning'); return; }
           
-            showLoading("Memproses dan Mengunggah Media...");
+            showLoading("Mengunggah Media...");
             try {
                 let base64Str;
                 if (file.type.startsWith('video/')) {
@@ -966,10 +949,7 @@
                     base64Str = await compressImage(file, 500, 500, true);
                 }
                 const fileName = "media_" + new Date().getTime() + "_" + file.name;
-                
-                const uploadRes = await new Promise((resolve, reject) => {
-                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).uploadMediaToDrive(base64Str, fileName);
-                });
+                const uploadRes = await postAPI({ action: 'uploadMedia', base64Data: base64Str, fileName: fileName });
 
                 if (uploadRes.success) {
                     obj[header] = uploadRes.url;
@@ -985,36 +965,42 @@
       }
 
       showLoading("Memperbarui Database...");
-      if (currentEditId) {
-        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).updateData(currentAdminSheet, currentEditId, obj);
-      } else {
-        google.script.run.withSuccessHandler(res => handleSaveResponse(res)).insertData(currentAdminSheet, obj);
-      }
-    }
-
-    function handleSaveResponse(res) {
-      hideLoading();
-      if(res.success) {
-        bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
-        Swal.fire('Sukses', res.message, 'success');
-        loadAdminModule(currentAdminSheet);
-        DB.content = {};
-      } else {
-        Swal.fire('Error', res.message, 'error');
+      try {
+        let res;
+        if (currentEditId) {
+          res = await postAPI({ action: 'updateData', sheetName: currentAdminSheet, id: currentEditId, dataObj: obj });
+        } else {
+          res = await postAPI({ action: 'insertData', sheetName: currentAdminSheet, dataObj: obj });
+        }
+        
+        hideLoading();
+        if(res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('adminModal')).hide();
+          Swal.fire('Sukses', res.message, 'success');
+          loadAdminModule(currentAdminSheet);
+          DB.content = {};
+        } else {
+          Swal.fire('Error', res.message, 'error');
+        }
+      } catch (e) {
+        hideLoading(); Swal.fire('Error', 'Gagal menyimpan data.', 'error');
       }
     }
 
     function deleteAdminData(id) {
       Swal.fire({
         title: 'Yakin hapus data?', text: "Data tidak dapat dikembalikan!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!'
-      }).then((result) => {
+      }).then(async (result) => {
         if (result.isConfirmed) {
           showLoading("Menghapus Data...");
-          google.script.run.withSuccessHandler(res => {
-              hideLoading();
-              if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
-              else { Swal.fire('Error', res.message, 'error'); }
-          }).deleteData(currentAdminSheet, id);
+          try {
+            const res = await postAPI({ action: 'deleteData', sheetName: currentAdminSheet, id: id });
+            hideLoading();
+            if(res.success) { Swal.fire('Terhapus!', res.message, 'success'); loadAdminModule(currentAdminSheet); DB.content = {}; }
+            else { Swal.fire('Error', res.message, 'error'); }
+          } catch(e) {
+            hideLoading(); Swal.fire('Error', 'Gagal menghapus data.', 'error');
+          }
         }
       });
     }
