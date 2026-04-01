@@ -39,8 +39,11 @@
     .line-title { width: 60px; height: 4px; background-color: #fd5308; margin: 15px auto; border-radius: 2px; }
     .note-modal-backdrop { z-index: 1040 !important; }
     .note-modal { z-index: 1050 !important; }
-    .note-editor .note-editing-area .note-editable img { max-width: 100%; height: auto; }
     main#site-content { flex: 1; }
+    
+    /* Perbaikan CSS Iframe Drive */
+    .drive-iframe { width: 100%; min-height: 220px; border: none; background-color: #000; }
+    .note-editor iframe { width: 100%; min-height: 315px; border-radius: 12px; border: none; }
   </style>
 </head>
 <body>
@@ -238,7 +241,7 @@
 
   <script>
     // ========================================================
-    // PASTIKAN URL WEB APP INI SUDAH BENAR DAN DIPERBARUI
+    // PASTIKAN URL WEB APP INI SUDAH BENAR
     // ========================================================
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxAI1D3xjf2AACtC4OwTBI7yaEy0CXEsH-TTLkYHT1-UWlpaW7t-FOSHAtGW-xa7m4r/exec"; 
 
@@ -272,23 +275,14 @@
         } catch (error) { throw error; }
     }
 
-    // --- FUNGSI MENGUBAH URL VIDEO LAMA AGAR BISA DIPUTAR HTML5 ---
-    function getPlayableVideoUrl(url) {
-        if (!url) return '';
-        if (url.includes('/preview')) {
-            const match = url.match(/\/d\/(.*?)\/preview/);
-            if (match && match[1]) return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-        }
-        return url;
-    }
-
-    // --- FUNGSI MERENDER THUMBNAIL BERITA & GALERI ---
+    // --- FUNGSI RENDER MENGGUNAKAN IFRAME UNTUK VIDEO DRIVE ---
+    // Karena Google Drive memblokir tag HTML5 <video> untuk file di atas beberapa MB,
+    // kita WAJIB menggunakan <iframe> agar video tidak blank hitam.
     function renderMedia(url, classes, alt = "Media") {
         if (!url) return '';
-        url = getPlayableVideoUrl(url);
-
-        if (url.includes('export=download')) {
-            return `<video class="${classes}" style="object-fit: cover; background-color: #1e293b;" src="${url}#t=0.1" muted playsinline preload="metadata"></video>`;
+        if (url.includes('/preview')) {
+            // Pointer-events:none di card agar klik masuk ke detail berita, bukan klik play iframe
+            return `<iframe src="${url}" class="${classes} drive-iframe" style="pointer-events:none;" allowfullscreen></iframe>`;
         } else {
             return `<img src="${url}" class="${classes}" alt="${alt}" loading="lazy">`;
         }
@@ -402,17 +396,11 @@
         const latestBerita = [...berita].reverse().slice(0, 3);
         latestBerita.forEach((r, idx) => {
           let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
-          
-          let playableUrl = getPlayableVideoUrl(imgUrl);
-          let playIconHtml = playableUrl.includes('export=download') 
-                             ? `<div class="absolute inset-0 bg-black/30 flex items-center justify-center z-10 pointer-events-none"><i class="fas fa-play-circle text-white text-5xl opacity-80"></i></div>` 
-                             : '';
 
           html += `
           <div class="col-md-4 mb-4 animate__animated animate__fadeInUp" style="animation-delay: ${idx * 0.1}s;">
             <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
               <div style="height:220px; overflow:hidden; position:relative;">
-                ${playIconHtml}
                 ${renderMedia(imgUrl, "card-img-top w-full h-full transition-transform duration-500 hover:scale-110", "Cover Berita")}
               </div>
               <div class="card-body p-6 flex-1 flex flex-col">
@@ -522,17 +510,11 @@
         if(dataBerita.length === 0) html += '<p class="text-center text-slate-500 w-full py-10">Belum ada berita dipublikasikan.</p>';
         [...dataBerita].reverse().forEach((r, i) => {
           let imgUrl = (r[4] && String(r[4]).startsWith('http')) ? r[4] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=Berita');
-          
-          let playableUrl = getPlayableVideoUrl(imgUrl);
-          let playIconHtml = playableUrl.includes('export=download') 
-                             ? `<div class="absolute inset-0 bg-black/30 flex items-center justify-center z-10 pointer-events-none"><i class="fas fa-play-circle text-white text-5xl opacity-80"></i></div>` 
-                             : '';
 
           html += `
           <div class="col-md-4 mb-4 animate__animated animate__fadeInUp" style="animation-delay: ${(i%3)*0.1}s;">
             <div class="card news-card h-100 shadow-sm cursor-pointer flex flex-col" onclick="bukaBerita('${r[0]}')">
               <div style="height:220px; overflow:hidden; position:relative;">
-                ${playIconHtml}
                 ${renderMedia(imgUrl, "card-img-top w-full h-full transition-transform duration-500 hover:scale-110", "Cover Berita")}
               </div>
               <div class="card-body p-5 flex flex-col">
@@ -552,10 +534,12 @@
           let imgUrl = (r[2] && String(r[2]).startsWith('http')) ? r[2] : (r.find(c => /^https?:\/\/[^\s]+$/.test(String(c))) || 'https://via.placeholder.com/500x300?text=No+Image');
           let desc = (r[2] && r[2] !== imgUrl) ? String(r[2] || '').replace(/<[^>]*>?/gm, '') : '';
           
-          let playableUrl = getPlayableVideoUrl(imgUrl);
-          let mediaHtml = playableUrl.includes('export=download')
-              ? `<video controls playsinline preload="metadata" src="${playableUrl}" class="w-full h-56 rounded-xl mb-3" style="background: #000; object-fit: cover;"></video>`
-              : `<img src="${playableUrl}" class="w-full h-56 object-cover rounded-xl mb-3" alt="Galeri">`;
+          let mediaHtml = '';
+          if (imgUrl.includes('/preview')) {
+              mediaHtml = `<iframe src="${imgUrl}" class="drive-iframe rounded-xl mb-3" allowfullscreen></iframe>`;
+          } else {
+              mediaHtml = `<img src="${imgUrl}" class="w-full h-56 object-cover rounded-xl mb-3" alt="Galeri">`;
+          }
 
           html += `
           <div class="col-md-4 mb-4 animate__animated animate__zoomIn" style="animation-delay: ${(i%3)*0.1}s;">
@@ -578,13 +562,12 @@
 
       nav('baca');
       
-      let playableUrl = getPlayableVideoUrl(imgUrl);
       let mediaHtml = '';
-      if (playableUrl) {
-          if (playableUrl.includes('export=download')) {
-              mediaHtml = `<div class="mb-10"><video controls playsinline preload="metadata" src="${playableUrl}" class="w-full rounded-2xl shadow-sm" style="max-height: 500px; background: #000;"></video></div>`;
+      if (imgUrl) {
+          if (imgUrl.includes('/preview')) {
+              mediaHtml = `<div class="mb-10"><iframe src="${imgUrl}" class="w-full rounded-2xl shadow-sm drive-iframe" style="min-height: 400px;" allowfullscreen></iframe></div>`;
           } else {
-              mediaHtml = `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm"><img src="${playableUrl}" class="w-full h-auto max-h-[500px] object-cover"></div>`;
+              mediaHtml = `<div class="mb-10 overflow-hidden rounded-2xl shadow-sm"><img src="${imgUrl}" class="w-full h-auto max-h-[500px] object-cover"></div>`;
           }
       }
 
@@ -704,11 +687,10 @@
           body += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition">';
           row.forEach((cell, i) => {
             if(typeof cell === 'string' && cell.startsWith('http')) {
-              let playableUrl = getPlayableVideoUrl(cell);
-              if (playableUrl.includes('export=download')) {
+              if (cell.includes('/preview')) {
                   body += `<td class="p-4"><div class="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-white shadow-sm"><i class="fas fa-video"></i></div></td>`;
               } else {
-                  body += `<td class="p-4"><img src="${playableUrl}" class="w-12 h-12 object-cover rounded-lg shadow-sm"></td>`;
+                  body += `<td class="p-4"><img src="${cell}" class="w-12 h-12 object-cover rounded-lg shadow-sm"></td>`;
               }
             } else {
               let cleanText = typeof cell === 'string' ? cell.replace(/<[^>]*>?/gm, '').substring(0, 60) : cell;
@@ -766,9 +748,7 @@
             canvas.height = maxHeight;
             const ctx = canvas.getContext('2d');
             const size = Math.min(width, height);
-            const startX = (width - size) / 2;
-            const startY = (height - size) / 2;
-            ctx.drawImage(img, startX, startY, size, size, 0, 0, maxWidth, maxHeight);
+            ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, maxWidth, maxHeight);
           } else {
             if (width > height) {
               if (width > maxWidth) { height = Math.round((height *= maxWidth / width)); width = maxWidth; }
@@ -798,9 +778,8 @@
         
         if(res.success) {
           if(isVideo) {
-              const playableUrl = getPlayableVideoUrl(res.url);
               const node = document.createElement('div');
-              node.innerHTML = `<br><video controls playsinline preload="metadata" src="${playableUrl}" width="100%" style="border-radius:12px; max-height: 400px; background: #000;"></video><br>`;
+              node.innerHTML = `<br><iframe src="${res.url}" width="100%" class="drive-iframe" style="border-radius:12px;" allowfullscreen></iframe><br>`;
               context.invoke('editor.insertNode', node);
           } else {
               context.invoke('editor.insertImage', res.url);
@@ -826,11 +805,10 @@
         if (isMediaField) {
           let previewHtml = '';
           if (val) {
-             let playableUrl = getPlayableVideoUrl(val);
-             if (playableUrl.includes('export=download')) {
-                 previewHtml = `<div class="mt-2"><video controls playsinline src="${playableUrl}#t=0.1" class="h-32 w-full rounded-lg shadow-sm" style="background: #000; object-fit: contain;"></video></div>`;
+             if (val.includes('/preview')) {
+                 previewHtml = `<div class="mt-2"><iframe src="${val}" class="h-32 w-full rounded-lg shadow-sm" style="border:none;" allowfullscreen></iframe></div>`;
              } else {
-                 previewHtml = `<div class="mt-2"><img src="${playableUrl}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`;
+                 previewHtml = `<div class="mt-2"><img src="${val}" class="h-20 w-auto rounded-lg shadow-sm object-cover"></div>`;
              }
           }
 
